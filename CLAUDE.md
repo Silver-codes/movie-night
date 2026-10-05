@@ -25,7 +25,8 @@ Update this section at the end of each step so work can resume after `/clear`.
 - [x] Pick page (step 8): `src/pages/PickPage.tsx` keeps `method` (default weighted wheel) / `max` / `genre` in the URL; stages `choose → podium|wheel → winner` in component state. It shows a live "N movies in the hat" count (client-side, same rules as the backend) and `RateReminder` banners for watchlist movies with `confirmed_pick_method`. Hooks in `src/api/pickHooks.ts` (`useCreatePick`, `useConfirmPick` invalidates movies + history). Components: `PickMethodCard` (native radios), `PickFilters`, `SpinWheel` (SVG, slices from `probability`, Motion `animate` on a motion value, ticks via `lib/tick.ts` Web Audio + remembered sound toggle; once landed, tapping the wheel spins again unless the pick is confirmed), `TopRatedPodium` (the server's winner always shown #1, ties tagged), `PickWinner` (confirm / spin again / "Not tonight" = skip + pick again). Pure wheel math in `lib/wheel.ts` (`targetRotation` lands in the middle 70% of the winner slice), method labels + runtime limits in `lib/pickMethods.ts`, `lib/confetti.ts` (`canvas-confetti`, off with reduced motion). Drawer shows "Rate it after watching" for a confirmed pick still on the watchlist.
 - [x] Mark watched + History (step 9): drawer "Mark watched" opens `MarkWatchedModal` (generic `Modal`: bottom sheet on phones / centered md+, z-50 above the drawer, Escape closes only the modal via a capture-phase window listener). Date prefilled with `movieNightDate()` (`lib/format.ts`, mirrors the backend); `watched_on` and verdicts/notes are only sent when set or changed. `MovieDetails` branches on status: watchlist → hype/"Not tonight"/Mark watched; watched → `WatchedDetails` (date, `VerdictFields` per person with stars saving instantly and notes saving on blur, read-only hype). `RemoveMovieButton` (two taps) is shared. `MovieDrawer` + `lib/useMovieParam.ts` (`?movie=`, back closes) are used by Watchlist and History. `HistoryPage`: `HistoryStats` strip (`StatTile`s; highest rated / disagreement open the drawer) + month-grouped timeline of `HistoryEntryCard` (poster, date, `PickMethodBadge`, verdicts, average, `HypeVsReality` from `lib/hypeVsReality.ts`, expandable notes). `useHistory` in `api/historyHooks.ts`; `useUpdateMovie` also invalidates history.
 - [x] Polish/QA (step 10): shared `ErrorState` (`EmptyState` `tone="error"`, "Couldn't load …" + Try again; shown only when there's no data, so a failed background refetch keeps the page) and `PRIMARY_BUTTON_CLASS` in `components/buttonStyles.ts`. Drawer/Modal trap Tab and restore focus via `lib/dialogFocus.ts` (falls back to the page `h1` when the opener is gone). `PosterImage` props `decorative` (alt="" next to a visible title) and `compact` (tiny thumbnails). Toasts sit at the top on phones. Pick page: "Everything is out for tonight" state with "Bring them all back"; focus moves to the podium/wheel and then the winner heading; the wheel announces the result through an `aria-live` line, shows the winner without a spin if it's missing from the candidates, and with reduced motion only glides (no extra turns). Frontend unit tests: `vitest` (`npm test`, `src/lib/wheel.test.ts`). Follow-ups: pages are lazy route chunks in `router.tsx` (`hydrateFallbackElement` = `PageLoading`), `canvas-confetti` is imported on first use; chip rows use `ScrollRow` (edge fades on phones); the Drawer focuses its panel on open (no ring); `SoundToggle` also shows under the wheel. Then: picks are saved **only on confirm** (`POST /api/picks` keeps a pending pick in memory, `PendingPicks` in `picks.py`, `pick_id` is a string token; confirm saves a `Pick` row, 404 "expired" after a restart; old unconfirmed rows are deleted on startup). Watched movies can be moved back to the watchlist (`MoveToWatchlistButton`, PATCH `status`), keeping verdicts, notes and `watched_on` (the drawer closes with a toast); `MarkWatchedModal` prefills the stored verdicts/notes and sends only changed fields. `MovieRead.awaiting_verdict` (watchlist + confirmed pick from a later movie night than `watched_on`) drives "rate it after watching". The Pick page's sticky bar has a full-width backdrop on phones. Watchlist cards: the title is the button (stretched `after:` layer covers the card, ring via `has-[:focus-visible]`); `PersonAvatar decorative` where the name is already present. Don't use Motion's `whileTap` on non-buttons: it adds `tabindex=0` (use CSS `active:scale-*`). Search's "Add to watchlist" is the overlay `QuickRatePopover` from sm up and a bottom sheet `QuickRateSheet` (full-size stars) on phones. `Modal` renders through a portal on `<body>` (fixed positioning breaks inside transformed ancestors). `BackdropImage`: backdrop → blurred poster → accent glow. Callbacks after an optimistic `useUpdateMovie` that unmounts the caller: use `mutateAsync().then(...)`, not per-call `onSuccess` (skipped on unmount).
-- [ ] Next: step 11, day-to-day running.
+- [x] Day-to-day running (step 11): root `package.json` (devDependency `concurrently`) runs everything from the repo root: `setup`, `dev` (api + web), `build`, `start` (build + serve), `serve` (`fastapi run` on 0.0.0.0:8000, for the phone on the LAN), `test`, `lint`, `backup`. Production mode: `app/frontend.py` `mount_frontend()` is called in `main.py` only when `frontend/dist/index.html` exists, after `api_router`: `/assets` static mount + catch-all GET (root files like `favicon.svg`, otherwise `index.html` with `no-cache`; `/api` and `/api/*` stay JSON 404; paths outside dist aren't served; `.js`/`.css` MIME types forced because of the Windows registry). Backup: `backend/scripts/backup_db.py` (SQLite online backup → `backups/movie_night-<timestamp>.db` at the repo root, git-ignored). README documents setup, dev, phone/firewall, backup/restore. Tests in `tests/test_frontend.py`.
+- [ ] Next: nothing planned; optional extras in `docs/roadmap.md`.
 
 ## Roadmap
 
@@ -37,7 +38,7 @@ Full planned prompts, plus open points to check before each step: `docs/roadmap.
 8. ~~Pick page: method cards, top-rated podium, SVG wheel landing on the backend's winner, confetti, confirm.~~ Done.
 9. ~~Mark-watched modal and History page with stats.~~ Done.
 10. ~~Polish/QA pass (mobile, a11y, states, tsc/lint, tests).~~ Done.
-11. One-command dev run, production mode (FastAPI serves `frontend/dist`) for phone on LAN, README + DB backup.
+11. ~~One-command dev run, production mode (FastAPI serves `frontend/dist`) for phone on LAN, README + DB backup.~~ Done.
 - Extras (maybe): where to watch (CZ), veto per spin, mood mode, forgotten gems.
 
 ## Workflow
@@ -54,6 +55,8 @@ Full planned prompts, plus open points to check before each step: `docs/roadmap.
 ## Folder structure
 
 ```
+package.json          # root scripts only (concurrently): setup, dev, build, start, serve, test, lint, backup
+backups/              # npm run backup output (git-ignored)
 backend/
   .env.example        # TMDB_TOKEN=... (copy to .env, never commit .env)
   pyproject.toml      # uv project (not a package; run from backend/)
@@ -63,6 +66,7 @@ backend/
     db.py             # SQLite engine (FKs on), create_db_and_tables(), get_session dependency
     models.py         # PEOPLE, enums, Movie/Pick tables + request/response schemas
     tmdb.py           # TMDBClient (httpx async), TMDBError, search cache, get_tmdb dependency
+    frontend.py       # mount_frontend(): serves frontend/dist + SPA fallback (production mode only)
     api/
       __init__.py     # api_router — include each feature router here
       health.py       # GET /api/health
@@ -70,6 +74,8 @@ backend/
       movies.py       # /api/movies CRUD + /watched
       picks.py        # POST /api/picks (choose(), get_rng), /api/picks/{id}/confirm
       history.py      # GET /api/history (+ stats)
+  scripts/
+    backup_db.py      # SQLite online backup -> ../backups/ (npm run backup)
   tests/
     conftest.py       # engine/client/tmdb_mock/session/make_movie fixtures
     factories.py      # fake TMDB payloads
@@ -100,6 +106,12 @@ frontend/
 ## Running
 
 ```bash
+# From the repo root (see README): first-time setup, both dev servers, production on 0.0.0.0:8000, backup
+npm run setup
+npm run dev
+npm start            # = npm run build && npm run serve
+npm run backup
+
 # Backend (port 8000)
 cd backend && uv sync && uv run fastapi dev app/main.py
 

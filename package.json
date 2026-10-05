@@ -1,0 +1,19 @@
+{
+  "name": "movie-night",
+  "private": true,
+  "scripts": {
+    "setup": "npm install && npm --prefix frontend install && uv sync --directory backend",
+    "dev": "concurrently -k -n api,web -c blue,magenta \"npm:dev:api\" \"npm:dev:web\"",
+    "dev:api": "uv run --directory backend fastapi dev app/main.py",
+    "dev:web": "npm --prefix frontend run dev",
+    "build": "npm --prefix frontend run build",
+    "start": "npm run build && npm run serve",
+    "serve": "uv run --directory backend fastapi run app/main.py --host 0.0.0.0 --port 8000",
+    "test": "uv run --directory backend pytest -q && npm --prefix frontend test",
+    "lint": "npm --prefix frontend run lint",
+    "backup": "uv run --directory backend python -m scripts.backup_db"
+  },
+  "devDependencies": {
+    "concurrently": "^10.0.5"
+  }
+}
