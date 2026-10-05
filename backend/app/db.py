@@ -15,7 +15,7 @@ engine = create_engine(
 
 
 @event.listens_for(engine, "connect")
-def _enable_sqlite_foreign_keys(dbapi_connection: SQLiteConnection, _: Any) -> None:
+def enable_sqlite_foreign_keys(dbapi_connection: SQLiteConnection, _: Any) -> None:
     # SQLite ignores foreign keys (and ON DELETE CASCADE) unless enabled per connection.
     cursor = dbapi_connection.cursor()
     cursor.execute("PRAGMA foreign_keys=ON")

@@ -1,12 +1,13 @@
 from datetime import UTC, date, datetime, timedelta
 from enum import Enum
-from typing import Final
+from typing import Final, Literal, Self
 
-from pydantic import computed_field
+from pydantic import computed_field, model_validator
 from sqlalchemy import JSON, CheckConstraint, Column, ColumnElement, and_, or_
 from sqlmodel import Field, SQLModel, col
 
 PEOPLE: Final = ["fuf", "cookie"]
+Person = Literal["fuf", "cookie"]
 
 STAR_COLUMNS: Final = ["fuf_hype", "cookie_hype", "fuf_verdict", "cookie_verdict"]
 
@@ -94,10 +95,30 @@ class Movie(MovieBase, table=True):
         if "skipped_tonight" in changes:
             self.skipped_on = movie_night_date() if changes.pop("skipped_tonight") else None
         self.sqlmodel_update(changes)
+        if self.status == MovieStatus.watched and self.watched_on is None:
+            self.watched_on = movie_night_date()
 
 
 class MovieCreate(MovieBase):
     pass
+
+
+class MovieSave(SQLModel):
+    """POST /movies body: the rest of the movie comes from TMDB."""
+
+    tmdb_id: int
+    fuf_hype: int | None = Field(default=None, ge=1, le=5)
+    cookie_hype: int | None = Field(default=None, ge=1, le=5)
+
+
+class MovieWatched(SQLModel):
+    """POST /movies/{id}/watched body; `watched_on` defaults to tonight's movie-night date."""
+
+    watched_on: date | None = None
+    fuf_verdict: int | None = Field(default=None, ge=1, le=5)
+    cookie_verdict: int | None = Field(default=None, ge=1, le=5)
+    fuf_note: str | None = None
+    cookie_note: str | None = None
 
 
 class MovieUpdate(SQLModel):
@@ -112,6 +133,13 @@ class MovieUpdate(SQLModel):
     cookie_verdict: int | None = Field(default=None, ge=1, le=5)
     fuf_note: str | None = None
     cookie_note: str | None = None
+
+    @model_validator(mode="after")
+    def _status_not_null(self) -> Self:
+        # Null clears stars and notes, but a movie always has a status.
+        if "status" in self.model_fields_set and self.status is None:
+            raise ValueError("status cannot be null")
+        return self
 
 
 class MovieRead(MovieBase):
