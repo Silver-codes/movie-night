@@ -2,7 +2,7 @@
 
 The user's planned prompts for upcoming steps. If the user says "do the next step" (or names a step), the prompt for it below is the task, together with its open points at the bottom. If the user sends their own prompt for a step, that wins; update this file to match. Don't implement steps ahead of time.
 
-Steps 1–8 (scaffold, models, TMDB/search, movie CRUD + tests, picking/history, frontend shell, Search + Watchlist pages, Pick page) are done; see Status in `CLAUDE.md`.
+Steps 1–9 (scaffold, models, TMDB/search, movie CRUD + tests, picking/history, frontend shell, Search + Watchlist pages, Pick page, mark-watched + History) are done; see Status in `CLAUDE.md`.
 
 ## Step 5 — Picking and history (backend)
 
@@ -82,5 +82,5 @@ The user commits after this step; the backend is then complete and can be explor
 - **Step 6 vs conventions (decided):** keep the `src/api/` folder, one file per resource, not the single `src/api.ts` from the prompt. Also add `src/pages/` to the folder structure.
 - **Skip tonight UI (agreed):** the backend supports it (`skipped_tonight` in PATCH), but no frontend step mentions it. Add it in the detail drawer (step 7) and/or the Pick page (step 8).
 - **Step 7 (done):** "Skip tonight" lives in the detail drawer as a "Not tonight" switch (cards show a "Not tonight" tag); the Pick page (step 8) can add it too. The drawer's "Mark watched" posts `/watched` with no body for now; step 9 swaps in the modal. Only one "not rated by" filter at a time (backend `unrated_by` takes one person). Runtime sort is shortest first. The JS bundle is ~510 kB after adding `motion` (Vite warns at 500 kB); look at code-splitting in step 10/11 if it matters.
-- **Step 9:** "date default today" should match the backend, which uses the movie-night date (it rolls over at 06:00), so the frontend can just omit `watched_on`.
+- **Step 9 (done):** the modal's date is prefilled with the client-side movie-night date (`movieNightDate()`, rolls over at 06:00 like the backend) and `watched_on` is only sent if the user changed it. Verdicts/notes are optional; empty notes are not sent (in the drawer, clearing a note sends null). Notes are capped at 280 chars in the UI only. A watched movie's drawer edits date, verdicts and notes; "Move back to watchlist" was deliberately left out (open question: keep or clear verdicts?). The pick-method badge uses the existing labels (Top Rated / Random Wheel / Weighted Wheel); movies without a confirmed pick show no badge. Hype vs reality = average given hype vs average verdict ("same" within 0.5). Bundle ~572 kB.
 - **Step 11 vs conventions:** serving `frontend/dist` from FastAPI is an intended exception to "never mount routes outside `/api`". Mount static files plus an SPA fallback, without shadowing `/api`.

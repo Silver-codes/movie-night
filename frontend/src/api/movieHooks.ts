@@ -67,9 +67,13 @@ export function useUpdateMovie() {
     },
     onSettled: () => {
       // While more star taps are in flight, a refetch would overwrite their optimistic state;
-      // the last mutation to finish refreshes lists (filter membership, sort order).
+      // the last mutation to finish refreshes lists (filter membership, sort order) and
+      // history (verdicts, notes and dates feed the timeline and stats).
       if (queryClient.isMutating({ mutationKey: UPDATE_MOVIE_KEY }) === 1) {
-        return queryClient.invalidateQueries({ queryKey: queryKeys.movies.all })
+        return Promise.all([
+          queryClient.invalidateQueries({ queryKey: queryKeys.movies.all }),
+          queryClient.invalidateQueries({ queryKey: queryKeys.history }),
+        ])
       }
     },
   })

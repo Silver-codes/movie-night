@@ -1,19 +1,18 @@
 import { AnimatePresence } from 'motion/react'
-import { useCallback, useMemo, type ReactNode } from 'react'
-import { Link, useLocation, useNavigate, useSearchParams } from 'react-router'
-import { useMovie, useMovies } from '../api/movieHooks'
-import type { Movie, MovieFilters, Person } from '../api/types'
-import { Drawer } from '../components/Drawer'
+import { useMemo, type ReactNode } from 'react'
+import { Link, useSearchParams } from 'react-router'
+import { useMovies } from '../api/movieHooks'
+import type { MovieFilters, Person } from '../api/types'
 import { EmptyState } from '../components/EmptyState'
-import { MovieDetails } from '../components/MovieDetails'
+import { MovieDrawer } from '../components/MovieDrawer'
 import { SearchIcon, WatchlistIcon } from '../components/NavIcons'
 import { PageHeader } from '../components/PageHeader'
 import { PersonTag } from '../components/PersonTag'
 import { POSTER_GRID_CLASS } from '../components/posterGrid'
 import { PosterGridSkeleton } from '../components/PosterGridSkeleton'
-import { Skeleton } from '../components/Skeleton'
 import { WatchlistCard } from '../components/WatchlistCard'
 import { WATCHLIST_SORTS, WatchlistFilters, type WatchlistSort } from '../components/WatchlistFilters'
+import { useMovieParam } from '../lib/useMovieParam'
 import { PEOPLE } from '../people'
 
 const DEFAULT_SORT: WatchlistSort = 'hype_total'
@@ -32,14 +31,12 @@ const buttonClass =
 
 export function WatchlistPage() {
   const [params, setParams] = useSearchParams()
-  const location = useLocation()
-  const navigate = useNavigate()
+  const { openId, openMovie, closeMovie } = useMovieParam()
 
   // Filters and the open movie live in the URL, so the phone's back button closes the drawer.
   const genre = params.get('genre')
   const unratedBy = parsePerson(params.get('unrated'))
   const sort = parseSort(params.get('sort'))
-  const openId = Number(params.get('movie')) || null
 
   const all = useMovies(ALL_WATCHLIST)
   const filters: MovieFilters = { status: 'watchlist', genre: genre ?? undefined, unrated_by: unratedBy ?? undefined, sort }
@@ -63,31 +60,8 @@ export function WatchlistPage() {
     setParams(next, { replace: true })
   }
 
-  function openMovie(movie: Movie) {
-    const next = new URLSearchParams(params)
-    next.set('movie', String(movie.id))
-    setParams(next, { state: { drawer: true } })
-  }
-
-  const fromDrawerPush = (location.state as { drawer?: boolean } | null)?.drawer === true
-  const closeMovie = useCallback(() => {
-    if (fromDrawerPush) {
-      void navigate(-1)
-    } else {
-      setParams(
-        (prev) => {
-          const next = new URLSearchParams(prev)
-          next.delete('movie')
-          return next
-        },
-        { replace: true },
-      )
-    }
-  }, [fromDrawerPush, navigate, setParams])
-
   const placeholder =
-    filtered.data?.find((m) => m.id === openId) ?? all.data?.find((m) => m.id === openId) ?? undefined
-  const detail = useMovie(openId, placeholder)
+    filtered.data?.find((m) => m.id === openId) ?? all.data?.find((m) => m.id === openId)
 
   const hasFilters = genre !== null || unratedBy !== null
 
@@ -165,7 +139,7 @@ export function WatchlistPage() {
           <ul className={`${POSTER_GRID_CLASS} transition-opacity ${filtered.isPlaceholderData ? 'opacity-60' : ''}`}>
             <AnimatePresence mode="popLayout" initial={false}>
               {filtered.data.map((movie) => (
-                <WatchlistCard key={movie.id} movie={movie} onOpen={openMovie} />
+                <WatchlistCard key={movie.id} movie={movie} onOpen={(m) => openMovie(m.id)} />
               ))}
             </AnimatePresence>
           </ul>
@@ -191,21 +165,7 @@ export function WatchlistPage() {
       />
       {content}
 
-      <Drawer open={openId !== null} onClose={closeMovie} label={detail.data?.title ?? 'Movie details'}>
-        {detail.data ? (
-          <MovieDetails movie={detail.data} onDone={closeMovie} />
-        ) : detail.isError ? (
-          <div className="p-6 pt-16">
-            <EmptyState title="Movie not found">{detail.error.message}</EmptyState>
-          </div>
-        ) : (
-          <div className="flex flex-col gap-4 p-6">
-            <Skeleton className="aspect-video w-full rounded-xl" />
-            <Skeleton className="h-7 w-2/3" />
-            <Skeleton className="h-24 w-full" />
-          </div>
-        )}
-      </Drawer>
+      <MovieDrawer movieId={openId} placeholder={placeholder} onClose={closeMovie} />
     </>
   )
 }
