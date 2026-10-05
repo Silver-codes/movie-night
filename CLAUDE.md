@@ -20,14 +20,15 @@ Update this section at the end of each step so work can resume after `/clear`.
 - [x] Movie CRUD in `app/api/movies.py`: `POST /api/movies` (`MovieSave` → TMDB details, 409 if saved), `GET /api/movies` (`status`, `genre` via `json_each`, `unrated_by` = missing hype on watchlist / missing verdict when watched, `sort` with nulls last), `GET|PATCH|DELETE /api/movies/{id}`, `POST /api/movies/{id}/watched` (`MovieWatched`, `watched_on` defaults to `movie_night_date()`, only sent verdicts/notes change). PATCH: null clears a star/note, `status: null` → 422, status→watched fills `watched_on`.
 - [x] Tests in `backend/tests/` (pytest + respx, in-memory SQLite via monkeypatched `app.db.engine`, settings never read `.env`): search + all movie endpoints.
 - [x] Picking + history in `app/api/picks.py` / `app/api/history.py`: `POST /api/picks` (`PickRequest`: method, `max_runtime` excludes unknown runtimes, `genre`; 400 if no pickable match) → `PickResult` with winner + ordered candidates (weight, probability). Choice in pure `choose()` using the `get_rng` dependency (seeded in tests). top_rated: weight = hype_total, random among ties; wheel_random: uniform; wheel_weighted: weight = hype_total or 1. `POST /api/picks/{id}/confirm` (idempotent). `MovieRead.confirmed_pick_method` = latest confirmed pick (for "rate it after watching" when still on watchlist). `GET /api/history` → watched movies newest first with `average_verdict` + stats (verdicts only for "Fuf vs Cookie"; ties → most recent). Backend complete; see `localhost:8000/docs`.
-- [ ] Next: step 6, the frontend shell.
+- [x] Frontend shell (step 6): theme tokens in `src/index.css` `@theme` (near-black `ink-*` surfaces with a faint silver glow, `fg`/`muted` text, one accent `accent` (blue), `fuf` lavender / `cookie` rose + `*-soft` tints; fonts Outfit `font-display` for headings, Inter body, loaded in `index.html`). Fuf/Cookie name, emoji (🐻 / 🍪) and color classes only via `src/people.ts` (`PEOPLE`, `personInfo()`), rendered by `PersonAvatar` / `PersonTag`. React Router (`src/router.tsx`, layout `AppLayout` = `TopNav` on md+ / `BottomTabBar` on mobile, `/` → `/watchlist`). TanStack Query client in `main.tsx` (failed mutations → toast; query errors shown inline). Typed API in `src/api/` (`types.ts` mirrors backend schemas, `client.ts` `apiFetch`/`ApiError`/`withQuery`, one file per resource, `images.ts` TMDB image URLs from paths, `queryKeys.ts`). Toasts: own store `src/lib/toast.ts` (`toast.success/error/info`) + `Toaster`. Skeletons: `Skeleton`, `PosterGridSkeleton`. Pages in `src/pages/` are placeholders.
+- [ ] Next: step 7, Search and Watchlist pages.
 
 ## Roadmap
 
 Full planned prompts, plus open points to check before each step: `docs/roadmap.md`. Read the relevant section when starting a step. The prompt the user actually sends wins. Don't build ahead.
 
 5. ~~Backend: `POST /api/picks` (top_rated / wheel_random / wheel_weighted, server-side choice, returns candidates with weights), confirm a pick, `GET /api/history` with stats.~~ Done.
-6. Frontend shell: cozy dark cinema theme, per-person color and avatar, router (Search / Watchlist / Pick / History), TanStack Query, toasts, skeletons.
+6. ~~Frontend shell: cozy dark cinema theme, per-person color and avatar, router (Search / Watchlist / Pick / History), TanStack Query, toasts, skeletons.~~ Done.
 7. Search and Watchlist pages: StarRating, quick-rate popover, filters/sort, detail drawer, optimistic updates.
 8. Pick page: method cards, top-rated podium, SVG wheel landing on the backend's winner, confetti, confirm.
 9. Mark-watched modal and History page with stats.
@@ -71,10 +72,16 @@ backend/
     test_search.py, test_movies.py, test_picks.py, test_history.py
 frontend/
   vite.config.ts      # React + Tailwind plugins, /api proxy -> http://localhost:8000
+  index.html          # Google Fonts (Outfit, Inter)
   src/
-    main.tsx, App.tsx, index.css
-    api/              # typed fetch functions, one file per resource
-    components/       # small focused components
+    main.tsx          # QueryClient (+ mutation error toasts), RouterProvider, Toaster
+    router.tsx        # routes: AppLayout > search / watchlist / pick / history
+    index.css         # Tailwind import + @theme design tokens + base styles
+    people.ts         # Fuf/Cookie name, emoji, color classes
+    api/              # types.ts (backend schemas), client.ts (apiFetch), queryKeys.ts, images.ts, one file per resource
+    lib/              # non-UI helpers (toast.ts store)
+    components/       # small focused components (one per file)
+    pages/            # one component per route
 ```
 
 ## Conventions
@@ -82,7 +89,7 @@ frontend/
 - **Typed code everywhere.** Python: type hints on all functions, Pydantic/SQLModel models for request/response bodies. TypeScript: strict mode, no `any`; mirror backend response shapes as TS types in `src/api/`.
 - **All API routes live under `/api`.** Add a router module in `backend/app/api/`, include it in `api_router`; never mount routes outside the `/api` prefix.
 - **Small, focused components.** One component per file in `src/components/`; keep data fetching in `src/api/` functions, not inline `fetch` calls in components.
-- Styling with Tailwind utility classes only (no separate CSS files per component).
+- Styling with Tailwind utility classes only (no separate CSS files per component). Use the theme tokens (`bg-ink-900`, `text-accent`, `text-fuf`…), not raw hex colors; person colors via `personInfo()`.
 - Config/secrets only via `Settings` in `app/config.py` and `.env`; never hardcode tokens or return them from the API.
 - The frontend always calls relative `/api/...` URLs (the Vite proxy handles routing in dev).
 

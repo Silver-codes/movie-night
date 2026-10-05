@@ -1,1 +1,70 @@
 @import "tailwindcss";
+
+/* Design tokens: dark cinema. Use them as Tailwind utilities, e.g. bg-ink-900, text-accent, text-fuf. */
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Outfit", "Inter", ui-sans-serif, system-ui, sans-serif;
+
+  /* Near-black, neutral-cool surfaces, darkest first. */
+  --color-ink-950: #0a0b0d;
+  --color-ink-900: #111317;
+  --color-ink-800: #1a1d22;
+  --color-ink-700: #262a31;
+  --color-ink-600: #353a43;
+
+  --color-fg: #e8eaee;
+  --color-muted: #9aa1ad;
+  --color-faint: #626875;
+
+  /* The one accent: blue. */
+  --color-accent: #5b9dff;
+  --color-accent-strong: #82b4ff;
+  --color-accent-soft: #5b9dff26;
+
+  --color-danger: #e5675c;
+  --color-success: #7cc48a;
+
+  /* Fuf and Cookie: used wherever their stars appear (see src/people.ts). */
+  --color-fuf: #a99cf2;
+  --color-fuf-soft: #a99cf226;
+  --color-cookie: #f08fb0;
+  --color-cookie-soft: #f08fb026;
+
+  --animate-shimmer: shimmer 1.6s ease-in-out infinite;
+
+  @keyframes shimmer {
+    0% {
+      background-position: 100% 0;
+    }
+    100% {
+      background-position: -100% 0;
+    }
+  }
+}
+
+@layer base {
+  :root {
+    color-scheme: dark;
+  }
+
+  body {
+    @apply min-h-dvh bg-ink-950 font-sans text-fg antialiased;
+    /* A faint silver glow from the top, like light from the screen. */
+    background-image: radial-gradient(ellipse 80% 50% at 50% -10%, #c9d1dd17, transparent 70%);
+    background-attachment: fixed;
+  }
+
+  h1,
+  h2,
+  h3 {
+    @apply font-display;
+  }
+
+  :focus-visible {
+    @apply outline-2 outline-offset-2 outline-accent;
+  }
+
+  ::selection {
+    @apply bg-accent text-ink-950;
+  }
+}
