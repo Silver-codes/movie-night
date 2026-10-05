@@ -29,10 +29,12 @@ export function HistoryEntryCard({ entry, onOpen }: Props) {
       <button
         type="button"
         onClick={() => onOpen(entry.id)}
+        // The title button below does the same for keyboards and screen readers.
+        tabIndex={-1}
+        aria-hidden="true"
         className="shrink-0 self-start rounded-xl"
-        aria-label={`Open ${entry.title}`}
       >
-        <PosterImage src={posterUrl(entry.poster_path, 'w185')} title={entry.title} className="w-16 sm:w-20" />
+        <PosterImage src={posterUrl(entry.poster_path, 'w185')} title={entry.title} decorative className="w-16 sm:w-20" />
       </button>
 
       <div className="flex min-w-0 flex-1 flex-col gap-2">
@@ -80,7 +82,7 @@ export function HistoryEntryCard({ entry, onOpen }: Props) {
             <button
               type="button"
               aria-expanded={showNotes}
-              aria-controls={notesId}
+              aria-controls={showNotes ? notesId : undefined}
               onClick={() => setShowNotes((open) => !open)}
               className="text-sm font-semibold text-accent hover:text-accent-strong"
             >
@@ -101,7 +103,7 @@ export function HistoryEntryCard({ entry, onOpen }: Props) {
                 >
                   {notes.map(({ person, note }) => (
                     <li key={person.id} className="mt-2 flex gap-2 text-sm">
-                      <PersonAvatar person={person.id} size="xs" />
+                      <PersonAvatar person={person.id} size="xs" decorative />
                       <p className="min-w-0 break-words">
                         <span className={`font-semibold ${person.textClass}`}>{person.name}: </span>
                         <span className="text-fg/85">{note}</span>

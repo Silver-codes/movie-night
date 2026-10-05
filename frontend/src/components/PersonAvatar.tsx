@@ -11,15 +11,16 @@ const SIZES = {
 type Props = {
   person: Person
   size?: keyof typeof SIZES
+  /** Hidden from screen readers: for avatars right next to the person's name (or a label with it). */
+  decorative?: boolean
 }
 
 /** The person's emoji in a circle tinted with their color. */
-export function PersonAvatar({ person, size = 'md' }: Props) {
+export function PersonAvatar({ person, size = 'md', decorative = false }: Props) {
   const info = personInfo(person)
   return (
     <span
-      role="img"
-      aria-label={info.name}
+      {...(decorative ? { 'aria-hidden': true } : { role: 'img', 'aria-label': info.name })}
       className={`inline-grid shrink-0 place-items-center rounded-full ring-1 ${info.softBgClass} ${info.ringClass} ${SIZES[size]}`}
     >
       {info.emoji}

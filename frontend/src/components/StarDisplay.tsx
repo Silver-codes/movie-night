@@ -8,9 +8,11 @@ export function StarDisplay({ person, value }: { person: Person; value: Stars })
   const info = personInfo(person)
   return (
     <div className="flex items-center gap-1.5">
-      <PersonAvatar person={person} size="xs" />
+      <PersonAvatar person={person} size="xs" decorative />
       {value === null ? (
-        <span className="text-xs text-faint">not rated</span>
+        <span className="text-xs text-faint">
+          <span className="sr-only">{info.name}: </span>not rated
+        </span>
       ) : (
         <span role="img" aria-label={`${info.name}: ${value} of 5 stars`} className={`flex ${info.textClass}`}>
           {Array.from({ length: 5 }, (_, i) => (

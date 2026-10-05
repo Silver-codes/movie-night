@@ -8,7 +8,7 @@ type Props = {
   candidates: PickCandidate[]
   winnerId: number
   /** A new value (the pick id) starts a new spin, continuing from where the wheel stopped. */
-  spinKey: number
+  spinKey: string
   showPercent: boolean
   sound: boolean
   onDone: () => void
@@ -39,7 +39,7 @@ const SPIN_EASE = [0.12, 0.6, 0.08, 1] as const
 export function SpinWheel({ candidates, winnerId, spinKey, showPercent, sound, onDone, onSpinAgain }: Props) {
   const rotation = useMotionValue(0)
   const reduceMotion = useReducedMotion()
-  const [landedKey, setLandedKey] = useState<number | null>(null)
+  const [landedKey, setLandedKey] = useState<string | null>(null)
   const landed = landedKey === spinKey
 
   const slices = useMemo(() => buildSlices(candidates.map((c) => c.probability)), [candidates])
@@ -50,17 +50,31 @@ export function SpinWheel({ candidates, winnerId, spinKey, showPercent, sound, o
   useEffect(() => {
     latest.current = { onDone, sound }
   })
+  // The spin that already finished; a later re-run (e.g. the reduced-motion setting changing) mustn't spin it again.
+  const completedKey = useRef<string | null>(null)
 
   useEffect(() => {
-    const slice = slices[winnerIndex]
-    if (!slice) {
+    if (completedKey.current === spinKey) {
       return
     }
-    const target = targetRotation(rotation.get(), slice, reduceMotion ? 1 : 6 + Math.floor(Math.random() * 3))
+    const finish = () => {
+      completedKey.current = spinKey
+      setLandedKey(spinKey)
+      latest.current.onDone()
+    }
+    const slice = slices[winnerIndex]
+    if (!slice) {
+      // The backend always includes the winner; if it ever doesn't, show the winner without a spin.
+      console.warn(`Pick winner ${winnerId} is not among the wheel's candidates`)
+      finish()
+      return
+    }
+    // Reduced motion: no extra full turns, just a short glide to the winner.
+    const target = targetRotation(rotation.get(), slice, reduceMotion ? 0 : 6 + Math.floor(Math.random() * 3))
     let lastIndex = sliceAtPointer(slices, rotation.get())
     const controls = animate(rotation, target, {
-      duration: reduceMotion ? 1.2 : 5.8,
-      ease: SPIN_EASE,
+      duration: reduceMotion ? 0.8 : 5.8,
+      ease: reduceMotion ? 'easeOut' : SPIN_EASE,
       onUpdate: (value) => {
         const index = sliceAtPointer(slices, value)
         if (index !== lastIndex) {
@@ -70,13 +84,10 @@ export function SpinWheel({ candidates, winnerId, spinKey, showPercent, sound, o
           }
         }
       },
-      onComplete: () => {
-        setLandedKey(spinKey)
-        latest.current.onDone()
-      },
+      onComplete: finish,
     })
     return () => controls.stop()
-  }, [spinKey, slices, winnerIndex, rotation, reduceMotion])
+  }, [spinKey, slices, winnerIndex, winnerId, rotation, reduceMotion])
 
   const winner = candidates[winnerIndex]
 
@@ -133,8 +144,9 @@ export function SpinWheel({ candidates, winnerId, spinKey, showPercent, sound, o
               // Arc length at the label's radius decides the font size; tiny slices get no label.
               const arc = (2 * Math.PI * R * 0.62 * sweep) / 360
               const fontSize = Math.min(15, Math.max(8, arc * 0.5))
-              const showLabel = sweep >= 4 && arc >= 9
-              const showPct = showPercent && sweep >= 9
+              const showLabel = arc >= 9
+              // Near the hub slices are narrow; below ~18° neighbouring percentages would overlap.
+              const showPct = showPercent && sweep >= 18
               const labelRoom = showPct ? R - 18 - (HUB + 34) : R - 18 - (HUB + 8)
               const maxChars = Math.max(3, Math.floor(labelRoom / (fontSize * 0.56)))
               return (
@@ -180,6 +192,10 @@ export function SpinWheel({ candidates, winnerId, spinKey, showPercent, sound, o
           </svg>
         </motion.div>
       </button>
+      {/* Stays mounted across spins, so the result is announced each time. */}
+      <p className="sr-only" aria-live="polite">
+        {landed && winner ? `The wheel landed on ${winner.movie.title}.` : ''}
+      </p>
     </div>
   )
 }

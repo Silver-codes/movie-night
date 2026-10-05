@@ -1,5 +1,7 @@
 import { AnimatePresence, motion } from 'motion/react'
 import { useEffect, useEffectEvent, useId, useRef, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
+import { restoreFocus, trapTab } from '../lib/dialogFocus'
 import { useMediaQuery } from '../lib/useMediaQuery'
 import { CloseIcon } from './NavIcons'
 
@@ -12,7 +14,8 @@ type Props = {
 
 /**
  * Dialog above everything else (also above an open `Drawer`): a bottom sheet on phones,
- * a centered card from md up. Escape closes only this dialog, not a drawer underneath.
+ * a centered card from md up. Escape closes only this dialog, not a drawer underneath; Tab stays inside it.
+ * Rendered on <body>: a transformed ancestor (e.g. a card's hover lift) would otherwise trap `position: fixed`.
  */
 export function Modal({ open, onClose, title, children }: Props) {
   const desktop = useMediaQuery('(min-width: 768px)')
@@ -41,11 +44,11 @@ export function Modal({ open, onClose, title, children }: Props) {
     return () => {
       window.removeEventListener('keydown', onKeyDown, { capture: true })
       document.body.style.overflow = previousOverflow
-      previousFocus?.focus()
+      restoreFocus(previousFocus)
     }
   }, [open])
 
-  return (
+  return createPortal(
     <AnimatePresence>
       {open && (
         <div className="fixed inset-0 z-50 flex items-end justify-center md:items-center md:p-6" role="presentation">
@@ -62,6 +65,7 @@ export function Modal({ open, onClose, title, children }: Props) {
             aria-modal="true"
             aria-labelledby={titleId}
             tabIndex={-1}
+            onKeyDown={trapTab}
             initial={hidden}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={hidden}
@@ -85,6 +89,7 @@ export function Modal({ open, onClose, title, children }: Props) {
           </motion.div>
         </div>
       )}
-    </AnimatePresence>
+    </AnimatePresence>,
+    document.body,
   )
 }

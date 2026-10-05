@@ -10,12 +10,13 @@ type Props = {
   title: string
   saving: boolean
   onSave: (stars: HypeStars) => void
-  onClose: () => void
+  /** `returnFocus` is true for Escape: the card should take focus back. */
+  onClose: (returnFocus: boolean) => void
 }
 
 /**
  * "Add to watchlist" panel that covers the card's poster: optional hype stars for both,
- * then one button ("Add unrated" until someone rates). Escape or a click outside closes it.
+ * then one button ("Add unrated" until someone rates). Escape, a click outside or tabbing out closes it.
  */
 export function QuickRatePopover({ title, saving, onSave, onClose }: Props) {
   const [stars, setStars] = useState<HypeStars>({ fuf: null, cookie: null })
@@ -27,12 +28,12 @@ export function QuickRatePopover({ title, saving, onSave, onClose }: Props) {
 
     function onPointerDown(event: PointerEvent) {
       if (!panel.current?.contains(event.target as Node)) {
-        onClose()
+        onClose(false)
       }
     }
     function onKeyDown(event: KeyboardEvent) {
       if (event.key === 'Escape') {
-        onClose()
+        onClose(true)
       }
     }
     document.addEventListener('pointerdown', onPointerDown)
@@ -48,6 +49,12 @@ export function QuickRatePopover({ title, saving, onSave, onClose }: Props) {
       ref={panel}
       role="dialog"
       aria-label={`Add ${title} to the watchlist`}
+      onBlur={(event) => {
+        // Focus moved to something outside (e.g. Tab past the last button).
+        if (event.relatedTarget && !event.currentTarget.contains(event.relatedTarget)) {
+          onClose(false)
+        }
+      }}
       initial={{ opacity: 0, y: 12, scale: 0.97 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
       exit={{ opacity: 0, y: 12, scale: 0.97 }}

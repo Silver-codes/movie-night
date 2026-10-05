@@ -7,7 +7,7 @@ export function PersonTag({ person }: { person: Person }) {
   const info = personInfo(person)
   return (
     <span className={`inline-flex items-center gap-2 rounded-full py-1 pr-3 pl-1 ${info.softBgClass}`}>
-      <PersonAvatar person={person} size="sm" />
+      <PersonAvatar person={person} size="sm" decorative />
       <span className={`text-sm font-semibold ${info.textClass}`}>{info.name}</span>
     </span>
   )

@@ -130,6 +130,15 @@ export function SoundOffIcon(props: IconProps) {
   )
 }
 
+export function WarningIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M12 4 2.8 19.5h18.4L12 4Z" />
+      <path d="M12 10v4.5M12 17.2v.1" />
+    </Icon>
+  )
+}
+
 export function ArrowLeftIcon(props: IconProps) {
   return (
     <Icon {...props}>

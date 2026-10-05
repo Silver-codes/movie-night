@@ -1,5 +1,6 @@
 import { RUNTIME_LIMITS, type RuntimeLimit } from '../lib/pickMethods'
 import { FilterChip } from './FilterChip'
+import { ScrollRow } from './ScrollRow'
 
 type Props = {
   genres: string[]
@@ -9,17 +10,13 @@ type Props = {
   onMaxRuntimeChange: (minutes: RuntimeLimit | null) => void
 }
 
-const scrollRowClass =
-  // Same sideways-scrolling row as the watchlist genre chips (see WatchlistFilters).
-  '-mx-4 -my-1 flex gap-2 overflow-x-auto px-4 py-1 [scrollbar-width:none] sm:m-0 sm:flex-wrap sm:overflow-visible sm:p-0'
-
 /** Optional pick filters: a max runtime and one genre. */
 export function PickFilters({ genres, genre, onGenreChange, maxRuntime, onMaxRuntimeChange }: Props) {
   return (
     <div className="flex flex-col gap-4">
       <fieldset className="flex min-w-0 flex-col gap-2">
         <legend className="mb-2 text-sm font-semibold tracking-wide text-muted uppercase">Time</legend>
-        <div className={scrollRowClass}>
+        <ScrollRow>
           <FilterChip active={maxRuntime === null} onClick={() => onMaxRuntimeChange(null)}>
             Any length
           </FilterChip>
@@ -32,12 +29,12 @@ export function PickFilters({ genres, genre, onGenreChange, maxRuntime, onMaxRun
               {limit.label}
             </FilterChip>
           ))}
-        </div>
+        </ScrollRow>
       </fieldset>
       {genres.length > 0 && (
         <fieldset className="flex min-w-0 flex-col gap-2">
           <legend className="mb-2 text-sm font-semibold tracking-wide text-muted uppercase">Genre</legend>
-          <div className={scrollRowClass}>
+          <ScrollRow>
             <FilterChip active={genre === null} onClick={() => onGenreChange(null)}>
               Any genre
             </FilterChip>
@@ -46,7 +43,7 @@ export function PickFilters({ genres, genre, onGenreChange, maxRuntime, onMaxRun
                 {g}
               </FilterChip>
             ))}
-          </div>
+          </ScrollRow>
         </fieldset>
       )}
     </div>

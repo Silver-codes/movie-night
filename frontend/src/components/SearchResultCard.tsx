@@ -1,18 +1,30 @@
 import { AnimatePresence, motion } from 'motion/react'
-import { useCallback, useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import { useSaveMovie } from '../api/movieHooks'
 import type { SearchResult } from '../api/types'
 import { toast } from '../lib/toast'
+import { useMediaQuery } from '../lib/useMediaQuery'
 import { CheckIcon, PlusIcon } from './NavIcons'
 import { PosterImage } from './PosterImage'
 import { QuickRatePopover, type HypeStars } from './QuickRatePopover'
+import { QuickRateSheet } from './QuickRateSheet'
 import { RatingBadge } from './RatingBadge'
 
-/** A TMDB search hit: poster, rating, year, and "Add to watchlist" with quick hype stars. */
+/**
+ * A TMDB search hit: poster, rating, year, and "Add to watchlist" with quick hype stars:
+ * over the poster from sm up, in a bottom sheet on phones (the card is too narrow for big stars).
+ */
 export function SearchResultCard({ result }: { result: SearchResult }) {
   const [rating, setRating] = useState(false)
   const save = useSaveMovie()
-  const close = useCallback(() => setRating(false), [])
+  const overlay = useMediaQuery('(min-width: 640px)')
+  const addButton = useRef<HTMLButtonElement>(null)
+  const close = useCallback((returnFocus: boolean) => {
+    setRating(false)
+    if (returnFocus) {
+      requestAnimationFrame(() => addButton.current?.focus())
+    }
+  }, [])
 
   function onSave(stars: HypeStars) {
     save.mutate(
@@ -36,6 +48,7 @@ export function SearchResultCard({ result }: { result: SearchResult }) {
         <PosterImage
           src={result.poster_url}
           title={result.title}
+          decorative
           className="shadow-lg shadow-black/40 transition-shadow group-hover:shadow-xl group-hover:shadow-black/60"
         />
         <RatingBadge rating={result.tmdb_rating} className="absolute top-2 left-2" />
@@ -45,22 +58,33 @@ export function SearchResultCard({ result }: { result: SearchResult }) {
             Saved
           </span>
         ) : (
-          !rating && (
-            <button
-              type="button"
-              onClick={() => setRating(true)}
-              className="absolute inset-x-2 bottom-2 flex items-center justify-center gap-1.5 rounded-lg bg-ink-950/80 px-2 py-2 text-sm font-semibold text-fg ring-1 ring-white/10 backdrop-blur transition hover:bg-accent hover:text-ink-950 md:opacity-0 md:group-focus-within:opacity-100 md:group-hover:opacity-100"
-            >
-              <PlusIcon className="size-4" strokeWidth={2.4} />
-              Add to watchlist
-            </button>
-          )
+          // Stays mounted under the popover, so focus can come back to it.
+          <button
+            ref={addButton}
+            type="button"
+            onClick={() => setRating(true)}
+            tabIndex={rating ? -1 : undefined}
+            aria-hidden={rating || undefined}
+            className={`absolute inset-x-2 bottom-2 flex items-center justify-center gap-1.5 rounded-lg bg-ink-950/80 px-2 py-2 text-sm font-semibold text-fg ring-1 ring-white/10 backdrop-blur transition hover:bg-accent hover:text-ink-950 md:opacity-0 md:group-focus-within:opacity-100 md:group-hover:opacity-100 ${rating ? 'invisible' : ''}`}
+          >
+            <PlusIcon className="size-4 shrink-0" strokeWidth={2.4} />
+            <span className="truncate">Add to watchlist</span>
+          </button>
         )}
         <AnimatePresence>
-          {rating && !result.already_saved && (
+          {overlay && rating && !result.already_saved && (
             <QuickRatePopover title={result.title} saving={save.isPending} onSave={onSave} onClose={close} />
           )}
         </AnimatePresence>
+        {!overlay && (
+          <QuickRateSheet
+            result={result}
+            open={rating && !result.already_saved}
+            saving={save.isPending}
+            onSave={onSave}
+            onClose={() => setRating(false)}
+          />
+        )}
       </div>
       <div>
         <h3 className="line-clamp-2 font-sans text-sm leading-snug font-semibold">{result.title}</h3>

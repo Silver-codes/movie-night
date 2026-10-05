@@ -1,11 +1,13 @@
 import { useState } from 'react'
-import { backdropUrl, posterUrl } from '../api/images'
+import { posterUrl } from '../api/images'
 import { useUpdateMovie } from '../api/movieHooks'
 import type { Movie } from '../api/types'
 import { formatRuntime } from '../lib/format'
 import { pickMethodLabel } from '../lib/pickMethods'
 import { PEOPLE } from '../people'
 import { MarkWatchedModal } from './MarkWatchedModal'
+import { MoveToWatchlistButton } from './MoveToWatchlistButton'
+import { BackdropImage } from './BackdropImage'
 import { PosterImage } from './PosterImage'
 import { RatingBadge } from './RatingBadge'
 import { RemoveMovieButton } from './RemoveMovieButton'
@@ -20,13 +22,12 @@ type Props = {
 
 /** Drawer content: backdrop, info, then hype + actions on the watchlist, or verdicts once watched. */
 export function MovieDetails({ movie, onDone }: Props) {
-  const backdrop = backdropUrl(movie.backdrop_path)
   const runtime = formatRuntime(movie.runtime)
 
   return (
     <article>
       <div className="relative aspect-video w-full bg-ink-800">
-        {backdrop && <img src={backdrop} alt="" className="size-full object-cover" />}
+        <BackdropImage movie={movie} />
         <div className="absolute inset-0 bg-linear-to-t from-ink-900 via-ink-900/40 to-transparent" />
       </div>
 
@@ -38,7 +39,7 @@ export function MovieDetails({ movie, onDone }: Props) {
             className="w-24 shrink-0 shadow-xl shadow-black/60"
           />
           <div className="min-w-0 pb-1">
-            <h2 className="text-2xl leading-tight font-semibold">{movie.title}</h2>
+            <h2 className="text-2xl leading-tight font-semibold break-words">{movie.title}</h2>
             <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted">
               {[movie.year, runtime].filter(Boolean).join(' · ')}
               <RatingBadge rating={movie.tmdb_rating} />
@@ -46,7 +47,7 @@ export function MovieDetails({ movie, onDone }: Props) {
           </div>
         </header>
 
-        {movie.status === 'watchlist' && movie.confirmed_pick_method && (
+        {movie.awaiting_verdict && movie.confirmed_pick_method && (
           <p className="rounded-xl bg-accent-soft px-4 py-3 text-sm ring-1 ring-accent/40">
             <span className="font-semibold text-accent">
               Your {pickMethodLabel(movie.confirmed_pick_method)} pick.
@@ -69,7 +70,10 @@ export function MovieDetails({ movie, onDone }: Props) {
           <>
             <WatchedDetails key={movie.id} movie={movie} />
             {movie.overview && <p className="leading-relaxed text-fg/85">{movie.overview}</p>}
-            <RemoveMovieButton movie={movie} onRemoved={onDone} className="self-start" />
+            <div className="flex flex-wrap gap-2">
+              <MoveToWatchlistButton movie={movie} onMoved={onDone} />
+              <RemoveMovieButton movie={movie} onRemoved={onDone} />
+            </div>
           </>
         ) : (
           <WatchlistDetails movie={movie} onDone={onDone} />

@@ -1,6 +1,6 @@
 import { motion, useReducedMotion } from 'motion/react'
 import { posterUrl } from '../api/images'
-import type { PickCandidate } from '../api/types'
+import type { Movie, PickCandidate } from '../api/types'
 import { PEOPLE } from '../people'
 import { PosterImage } from './PosterImage'
 import { StarDisplay } from './StarDisplay'
@@ -8,7 +8,7 @@ import { StarDisplay } from './StarDisplay'
 type Props = {
   /** Ranked by hype total (the backend's order). */
   candidates: PickCandidate[]
-  winnerId: number
+  winner: Movie
   onPick: () => void
 }
 
@@ -22,10 +22,11 @@ const PLACES = [
 ] as const
 
 /** Ranked podium + short list. The backend's winner is always #1, even among ties. */
-export function TopRatedPodium({ candidates, winnerId, onPick }: Props) {
+export function TopRatedPodium({ candidates, winner, onPick }: Props) {
   const reduceMotion = useReducedMotion()
-  const winner = candidates.find((c) => c.movie.id === winnerId)
-  const ranked = winner ? [winner, ...candidates.filter((c) => c !== winner)] : candidates
+  // The winner should always be among the candidates; if not, still show it first (it's what gets picked).
+  const winnerCandidate = candidates.find((c) => c.movie.id === winner.id) ?? { movie: winner, weight: 0, probability: 1 }
+  const ranked = [winnerCandidate, ...candidates.filter((c) => c !== winnerCandidate)]
   const tiedCount = candidates.filter((c) => c.probability > 0).length
   const podium = ranked.slice(0, 3)
   const rest = ranked.slice(3, LIST_LIMIT)
@@ -51,6 +52,7 @@ export function TopRatedPodium({ candidates, winnerId, onPick }: Props) {
                 <PosterImage
                   src={posterUrl(candidate.movie.poster_path)}
                   title={candidate.movie.title}
+                  decorative
                   className={first ? 'ring-2 ring-accent' : ''}
                 />
                 {tied && (
@@ -99,7 +101,7 @@ export function TopRatedPodium({ candidates, winnerId, onPick }: Props) {
           onClick={onPick}
           className="rounded-xl bg-accent px-8 py-3.5 text-lg font-semibold text-ink-950 shadow-lg shadow-accent/20 transition hover:bg-accent-strong"
         >
-          Pick {podium[0]?.movie.title ?? 'this'}
+          Pick {winner.title}
         </button>
         {tiedCount > 1 && (
           <p className="text-sm text-muted">{tiedCount} movies were tied at the top. A coin flip chose this one.</p>
@@ -114,6 +116,8 @@ export function TopRatedPodium({ candidates, winnerId, onPick }: Props) {
               <PosterImage
                 src={posterUrl(candidate.movie.poster_path, 'w185')}
                 title={candidate.movie.title}
+                decorative
+                compact
                 className="w-9 shrink-0 rounded-md!"
               />
               <span className="min-w-0 flex-1 truncate font-medium">{candidate.movie.title}</span>

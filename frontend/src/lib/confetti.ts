@@ -1,5 +1,3 @@
-import confetti from 'canvas-confetti'
-
 const COLOR_TOKENS = ['--color-accent', '--color-accent-strong', '--color-fuf', '--color-cookie', '--color-fg']
 
 function themeColors(): string[] {
@@ -14,6 +12,9 @@ export function fireConfetti(): void {
   }
   const colors = themeColors()
   const shared = { particleCount: 90, spread: 70, startVelocity: 55, ticks: 220, colors, zIndex: 60 }
-  void confetti({ ...shared, angle: 60, origin: { x: 0, y: 0.9 } })
-  void confetti({ ...shared, angle: 120, origin: { x: 1, y: 0.9 } })
+  // Loaded on the first celebration only; it isn't needed anywhere else.
+  void import('canvas-confetti').then(({ default: confetti }) => {
+    void confetti({ ...shared, angle: 60, origin: { x: 0, y: 0.9 } })
+    void confetti({ ...shared, angle: 120, origin: { x: 1, y: 0.9 } })
+  })
 }

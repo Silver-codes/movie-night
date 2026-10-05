@@ -10,11 +10,11 @@ export function useCreatePick() {
   })
 }
 
-/** "We're watching this!": the movie's `confirmed_pick_method` changes, so refresh movies + history. */
+/** "We're watching this!": the movie's `confirmed_pick_method` / `awaiting_verdict` change, so refresh movies + history. */
 export function useConfirmPick() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: (pickId: number) => confirmPick(pickId),
+    mutationFn: (pickId: string) => confirmPick(pickId),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.movies.all })
       void queryClient.invalidateQueries({ queryKey: queryKeys.history })

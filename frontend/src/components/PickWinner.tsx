@@ -1,12 +1,13 @@
 import { motion, useReducedMotion } from 'motion/react'
 import { useEffect, useRef } from 'react'
 import { Link } from 'react-router'
-import { backdropUrl, posterUrl } from '../api/images'
+import { posterUrl } from '../api/images'
 import type { Movie, PickMethod } from '../api/types'
 import { formatRuntime } from '../lib/format'
 import { pickMethodLabel } from '../lib/pickMethods'
 import { PEOPLE } from '../people'
 import { CheckIcon } from './NavIcons'
+import { BackdropImage } from './BackdropImage'
 import { PosterImage } from './PosterImage'
 import { StarDisplay } from './StarDisplay'
 
@@ -38,25 +39,27 @@ export function PickWinner({
 }: Props) {
   const reduceMotion = useReducedMotion()
   const ref = useRef<HTMLElement>(null)
-  const backdrop = backdropUrl(movie.backdrop_path)
+  const heading = useRef<HTMLHeadingElement>(null)
   const meta = [movie.year, formatRuntime(movie.runtime)].filter(Boolean).join(' · ')
 
-  // On phones the wheel fills the screen; bring the winner into view.
+  // On phones the wheel fills the screen; bring the winner into view and move focus to it
+  // (the button that started the pick is gone or disabled by now).
   useEffect(() => {
+    heading.current?.focus({ preventScroll: true })
     ref.current?.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'nearest' })
   }, [movie.id, reduceMotion])
 
   return (
     <motion.section
       ref={ref}
-      aria-live="polite"
+      aria-label="Tonight's pick"
       initial={reduceMotion ? false : { opacity: 0, y: 24, scale: 0.97 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
       transition={{ type: 'spring', stiffness: 220, damping: 24 }}
       className="scroll-mb-24 overflow-hidden rounded-3xl bg-ink-900 ring-1 ring-ink-700"
     >
       <div className="relative aspect-video w-full bg-ink-800">
-        {backdrop && <img src={backdrop} alt="" className="size-full object-cover" />}
+        <BackdropImage movie={movie} />
         <div className="absolute inset-0 bg-linear-to-t from-ink-900 via-ink-900/50 to-transparent" />
         <p className="absolute top-4 left-4 rounded-full bg-ink-950/80 px-3 py-1 text-xs font-semibold tracking-wide text-accent uppercase backdrop-blur">
           {pickMethodLabel(method)} picked
@@ -68,10 +71,17 @@ export function PickWinner({
           <PosterImage
             src={posterUrl(movie.poster_path, 'w185')}
             title={movie.title}
+            decorative
             className="w-24 shrink-0 shadow-xl shadow-black/60 sm:w-28"
           />
           <div className="min-w-0 pb-1">
-            <h2 className="text-3xl leading-tight font-semibold tracking-tight sm:text-4xl">{movie.title}</h2>
+            <h2
+              ref={heading}
+              tabIndex={-1}
+              className="text-3xl leading-tight font-semibold tracking-tight break-words outline-none sm:text-4xl"
+            >
+              {movie.title}
+            </h2>
             {meta && <p className="mt-1 text-muted">{meta}</p>}
           </div>
         </header>

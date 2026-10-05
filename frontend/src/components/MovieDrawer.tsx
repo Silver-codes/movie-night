@@ -1,7 +1,9 @@
 import { useMovie } from '../api/movieHooks'
+import { ApiError } from '../api/client'
 import type { Movie } from '../api/types'
 import { Drawer } from './Drawer'
 import { EmptyState } from './EmptyState'
+import { ErrorState } from './ErrorState'
 import { MovieDetails } from './MovieDetails'
 import { Skeleton } from './Skeleton'
 
@@ -22,10 +24,14 @@ export function MovieDrawer({ movieId, placeholder, onClose }: Props) {
         <MovieDetails movie={detail.data} onDone={onClose} />
       ) : detail.isError ? (
         <div className="p-6 pt-16">
-          <EmptyState title="Movie not found">{detail.error.message}</EmptyState>
+          {detail.error instanceof ApiError && detail.error.status === 404 ? (
+            <EmptyState title="Movie not found">It may have been removed. Close this and pick another one.</EmptyState>
+          ) : (
+            <ErrorState what="this movie" error={detail.error} onRetry={() => void detail.refetch()} />
+          )}
         </div>
       ) : (
-        <div className="flex flex-col gap-4 p-6">
+        <div role="status" aria-label="Loading the movie" className="flex flex-col gap-4 p-6">
           <Skeleton className="aspect-video w-full rounded-xl" />
           <Skeleton className="h-7 w-2/3" />
           <Skeleton className="h-24 w-full" />

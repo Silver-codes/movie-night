@@ -1,4 +1,5 @@
 import { Link } from 'react-router'
+import { PRIMARY_BUTTON_CLASS } from '../components/buttonStyles'
 import { EmptyState } from '../components/EmptyState'
 
 export function NotFoundPage() {
@@ -6,10 +7,7 @@ export function NotFoundPage() {
     <EmptyState
       title="This reel is missing"
       action={
-        <Link
-          to="/watchlist"
-          className="rounded-full bg-accent px-5 py-2.5 text-sm font-semibold text-ink-950 transition hover:bg-accent-strong"
-        >
+        <Link to="/watchlist" className={PRIMARY_BUTTON_CLASS}>
           Back to the watchlist
         </Link>
       }

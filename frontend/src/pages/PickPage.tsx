@@ -1,16 +1,16 @@
 import { AnimatePresence } from 'motion/react'
-import { useMemo, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Link, useSearchParams } from 'react-router'
 import { useMovies, useUpdateMovie } from '../api/movieHooks'
 import { useConfirmPick, useCreatePick } from '../api/pickHooks'
 import type { MovieFilters, PickMethod, PickRequest, PickResult } from '../api/types'
+import { PRIMARY_BUTTON_CLASS } from '../components/buttonStyles'
 import { EmptyState } from '../components/EmptyState'
+import { ErrorState } from '../components/ErrorState'
 import {
   ArrowLeftIcon,
   PickIcon,
   SearchIcon,
-  SoundOffIcon,
-  SoundOnIcon,
   TrophyIcon,
   WeightedWheelIcon,
 } from '../components/NavIcons'
@@ -20,6 +20,7 @@ import { PickMethodCard } from '../components/PickMethodCard'
 import { PickWinner } from '../components/PickWinner'
 import { RateReminder } from '../components/RateReminder'
 import { Skeleton } from '../components/Skeleton'
+import { SoundToggle } from '../components/SoundToggle'
 import { SpinWheel } from '../components/SpinWheel'
 import { TopRatedPodium } from '../components/TopRatedPodium'
 import { fireConfetti } from '../lib/confetti'
@@ -53,7 +54,8 @@ function parseMaxRuntime(value: string | null): RuntimeLimit | null {
   return RUNTIME_LIMITS.find((l) => String(l.value) === value)?.value ?? null
 }
 
-const primaryButtonClass =
+/** The bigger buttons in the sticky "in the hat" bar. */
+const barButtonClass =
   'inline-flex items-center justify-center gap-2 rounded-xl bg-accent px-6 py-3 font-semibold text-ink-950 transition hover:bg-accent-strong disabled:opacity-50'
 
 export function PickPage() {
@@ -68,15 +70,23 @@ export function PickPage() {
   const updateMovie = useUpdateMovie()
 
   const [stage, setStage] = useState<Stage>({ kind: 'choose' })
-  const [confirmedPickId, setConfirmedPickId] = useState<number | null>(null)
+  const [confirmedPickId, setConfirmedPickId] = useState<string | null>(null)
   const [sound, setSound] = useState(loadSoundEnabled)
+  const stageRegion = useRef<HTMLDivElement>(null)
+
+  // The button that started the pick is gone; move focus to the podium/wheel (the winner card focuses itself).
+  useEffect(() => {
+    if (stage.kind === 'podium' || stage.kind === 'wheel') {
+      stageRegion.current?.focus({ preventScroll: true })
+    }
+  }, [stage.kind])
 
   const movies = useMemo(() => watchlist.data ?? [], [watchlist.data])
   const genres = useMemo(
     () => [...new Set(movies.flatMap((m) => m.genres))].sort((a, b) => a.localeCompare(b)),
     [movies],
   )
-  const toRate = movies.filter((m) => m.confirmed_pick_method !== null)
+  const toRate = movies.filter((m) => m.awaiting_verdict)
   // Same rules as the backend's candidates, for a live count before asking it.
   const inTheHat = movies.filter(
     (m) =>
@@ -85,6 +95,8 @@ export function PickPage() {
       (genre === null || m.genres.includes(genre)),
   ).length
   const pickableCount = movies.filter((m) => m.is_pickable).length
+  // Everything on the watchlist is pickable or skipped tonight, so the rest are the skipped ones.
+  const skipped = movies.filter((m) => !m.is_pickable)
   const hasFilters = maxRuntime !== null || genre !== null
 
   function setParam(key: string, value: string | null) {
@@ -116,7 +128,7 @@ export function PickPage() {
     })
   }
 
-  function onWheelDone(pickId: number) {
+  function onWheelDone(pickId: string) {
     setStage((s) => (s.kind === 'wheel' && s.result.pick_id === pickId ? { ...s, landed: true } : s))
     fireConfetti()
   }
@@ -147,11 +159,20 @@ export function PickPage() {
     )
   }
 
+  function bringAllBack() {
+    for (const movie of skipped) {
+      updateMovie.mutate({ id: movie.id, update: { skipped_tonight: false } })
+    }
+  }
+
   function toggleSound() {
-    setSound((on) => {
-      saveSoundEnabled(!on)
-      return !on
-    })
+    const next = !sound
+    // The click is a user gesture, so audio may start (also when switched on mid-spin).
+    if (next) {
+      unlockAudio()
+    }
+    saveSoundEnabled(next)
+    setSound(next)
   }
 
   const backToChoose = () => setStage({ kind: 'choose' })
@@ -160,7 +181,7 @@ export function PickPage() {
   let content: ReactNode
   if (watchlist.isPending) {
     content = (
-      <div className="flex flex-col gap-6">
+      <div role="status" aria-label="Loading the watchlist" className="flex flex-col gap-6">
         <div className="grid gap-3 sm:grid-cols-3">
           {PICK_METHODS.map((m) => (
             <Skeleton key={m.value} className="h-24 rounded-2xl sm:h-40" />
@@ -169,32 +190,36 @@ export function PickPage() {
         <Skeleton className="h-20 w-full rounded-2xl" />
       </div>
     )
-  } else if (watchlist.isError) {
-    content = (
-      <EmptyState
-        title="Couldn't load the watchlist"
-        action={
-          <button type="button" className={primaryButtonClass} onClick={() => void watchlist.refetch()}>
-            Try again
-          </button>
-        }
-      >
-        {watchlist.error.message}
-      </EmptyState>
-    )
+  } else if (!watchlist.data) {
+    // Only when there's nothing to show: a failed background refetch keeps the wheel or winner on screen.
+    content = <ErrorState what="the watchlist" error={watchlist.error} onRetry={() => void watchlist.refetch()} />
   } else if (movies.length === 0) {
     content = (
       <EmptyState
         title="Nothing to pick from yet"
         icon={<PickIcon className="size-7" />}
         action={
-          <Link to="/search" className={primaryButtonClass}>
+          <Link to="/search" className={PRIMARY_BUTTON_CLASS}>
             <SearchIcon className="size-5" />
             Find a movie
           </Link>
         }
       >
         Save a few movies to the watchlist first, then come back and spin.
+      </EmptyState>
+    )
+  } else if (stage.kind === 'choose' && pickableCount === 0) {
+    content = (
+      <EmptyState
+        title="Everything is out for tonight"
+        icon={<PickIcon className="size-7" />}
+        action={
+          <button type="button" className={PRIMARY_BUTTON_CLASS} onClick={bringAllBack} disabled={updateMovie.isPending}>
+            Bring them all back
+          </button>
+        }
+      >
+        You said “not tonight” to every movie on the watchlist. They come back on their own tomorrow.
       </EmptyState>
     )
   } else if (stage.kind === 'choose') {
@@ -229,50 +254,42 @@ export function PickPage() {
           onMaxRuntimeChange={(minutes) => setParam('max', minutes === null ? null : String(minutes))}
         />
 
-        <div className="sticky bottom-[calc(5rem+env(safe-area-inset-bottom))] z-10 flex flex-col gap-3 rounded-2xl bg-ink-900/90 p-4 ring-1 ring-ink-700 backdrop-blur sm:flex-row sm:items-center md:bottom-4">
-          <p className="flex-1 text-sm text-muted" aria-live="polite">
-            {inTheHat > 0 ? (
-              <>
-                <span className="text-lg font-bold text-fg">{inTheHat}</span> {inTheHat === 1 ? 'movie' : 'movies'} in
-                the hat
-              </>
-            ) : pickableCount === 0 ? (
-              'Everything on the watchlist is out for tonight.'
-            ) : (
-              'No movie fits these filters.'
-            )}
-          </p>
-          <div className="flex items-center gap-2">
-            {isWheel && (
-              <button
-                type="button"
-                onClick={toggleSound}
-                aria-pressed={sound}
-                aria-label="Wheel sound"
-                title={sound ? 'Sound on' : 'Sound off'}
-                className="grid size-12 place-items-center rounded-xl text-muted ring-1 ring-ink-600 transition hover:text-fg"
-              >
-                {sound ? <SoundOnIcon className="size-5" /> : <SoundOffIcon className="size-5" />}
-              </button>
-            )}
-            {inTheHat === 0 && hasFilters ? (
-              <button
-                type="button"
-                className={`${primaryButtonClass} flex-1`}
-                onClick={() => setParams(method === DEFAULT_METHOD ? {} : { method }, { replace: true })}
-              >
-                Clear filters
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={() => runPick()}
-                disabled={inTheHat === 0 || createPick.isPending}
-                className={`${primaryButtonClass} flex-1 text-lg`}
-              >
-                {createPick.isPending ? 'Picking…' : isWheel ? 'Spin the wheel' : 'Show the podium'}
-              </button>
-            )}
+        {/* On phones the sticky bar gets a full-width backdrop, so chip rows scrolling under it can't peek out beside it. */}
+        <div className="sticky bottom-[calc(5rem+env(safe-area-inset-bottom))] z-10 -mx-4 -mt-6 bg-linear-to-t from-ink-950 from-70% to-transparent px-4 pt-6 pb-2 sm:mx-0 sm:mt-0 sm:bg-none sm:p-0 md:bottom-4">
+          <div className="flex flex-col gap-3 rounded-2xl bg-ink-900/90 p-4 ring-1 ring-ink-700 backdrop-blur sm:flex-row sm:items-center">
+            <p className="flex-1 text-sm text-muted" aria-live="polite">
+              {inTheHat > 0 ? (
+                <>
+                  <span className="text-lg font-bold text-fg">{inTheHat}</span> {inTheHat === 1 ? 'movie' : 'movies'} in
+                  the hat
+                </>
+              ) : (
+                'No movie fits these filters.'
+              )}
+            </p>
+            <div className="flex items-center gap-2">
+              {isWheel && (
+                <SoundToggle on={sound} onToggle={toggleSound} />
+              )}
+              {inTheHat === 0 && hasFilters ? (
+                <button
+                  type="button"
+                  className={`${barButtonClass} flex-1`}
+                  onClick={() => setParams(method === DEFAULT_METHOD ? {} : { method }, { replace: true })}
+                >
+                  Clear filters
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => runPick()}
+                  disabled={inTheHat === 0 || createPick.isPending}
+                  className={`${barButtonClass} flex-1 text-lg`}
+                >
+                  {createPick.isPending ? 'Picking…' : isWheel ? 'Spin the wheel' : 'Show the podium'}
+                </button>
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -297,7 +314,7 @@ export function PickPage() {
     )
 
     content = (
-      <div className="flex flex-col gap-6">
+      <div ref={stageRegion} tabIndex={-1} role="region" aria-label={pickMethodInfo(result.method).label} className="flex flex-col gap-6 outline-none">
         <button
           type="button"
           onClick={backToChoose}
@@ -310,7 +327,7 @@ export function PickPage() {
         {stage.kind === 'podium' && (
           <TopRatedPodium
             candidates={result.candidates}
-            winnerId={result.winner.id}
+            winner={result.winner}
             onPick={() => onPickTopRated(result)}
           />
         )}
@@ -329,11 +346,14 @@ export function PickPage() {
                 onDone={() => onWheelDone(result.pick_id)}
                 onSpinAgain={canSpinAgain ? spinAgain : undefined}
               />
-              <p className="text-sm text-muted">
-                {canSpinAgain
-                  ? 'Tap the wheel to spin again'
-                  : `${result.candidates.length} ${result.candidates.length === 1 ? 'movie' : 'movies'} on the wheel`}
-              </p>
+              <div className="flex items-center gap-3">
+                <p className="text-sm text-muted">
+                  {canSpinAgain
+                    ? 'Tap the wheel to spin again'
+                    : `${result.candidates.length} ${result.candidates.length === 1 ? 'movie' : 'movies'} on the wheel`}
+                </p>
+                <SoundToggle on={sound} onToggle={toggleSound} className="size-9" />
+              </div>
             </div>
             <AnimatePresence>{stage.landed && <div key={result.pick_id}>{winner}</div>}</AnimatePresence>
           </div>

@@ -1,6 +1,7 @@
 import type { MovieSort, Person } from '../api/types'
 import { PEOPLE } from '../people'
 import { FilterChip } from './FilterChip'
+import { ScrollRow } from './ScrollRow'
 
 export const WATCHLIST_SORTS = [
   { value: 'hype_total', label: 'Hype total' },
@@ -33,10 +34,7 @@ export function WatchlistFilters({
   return (
     <div className="mb-6 flex flex-col gap-3">
       {genres.length > 0 && (
-        // Scrolls sideways on phones instead of wrapping into many rows. A scroll container clips
-        // its edges, so the padding (cancelled by the negative margins) leaves room for the chips'
-        // rings and focus outlines; from sm up it wraps and doesn't clip at all.
-        <div className="-mx-4 -my-1 flex gap-2 overflow-x-auto px-4 py-1 [scrollbar-width:none] sm:m-0 sm:flex-wrap sm:overflow-visible sm:p-0">
+        <ScrollRow>
           <FilterChip active={genre === null} onClick={() => onGenreChange(null)}>
             All genres
           </FilterChip>
@@ -45,7 +43,7 @@ export function WatchlistFilters({
               {g}
             </FilterChip>
           ))}
-        </div>
+        </ScrollRow>
       )}
       <div className="flex flex-wrap items-center gap-2">
         {PEOPLE.map((person) => (
@@ -64,7 +62,7 @@ export function WatchlistFilters({
           <select
             value={sort}
             onChange={(e) => onSortChange(e.target.value as WatchlistSort)}
-            className="rounded-lg border border-ink-700 bg-ink-900 px-3 py-1.5 text-sm text-fg focus:border-accent focus:outline-none"
+            className="rounded-lg border border-ink-700 bg-ink-900 px-3 py-1.5 text-sm text-fg focus:border-accent"
           >
             {WATCHLIST_SORTS.map((s) => (
               <option key={s.value} value={s.value}>

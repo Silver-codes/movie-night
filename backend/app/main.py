@@ -4,15 +4,20 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
+from sqlmodel import Session
+
+from app import db
 from app.api import api_router
+from app.api.picks import delete_unconfirmed_picks
 from app.config import get_settings
-from app.db import create_db_and_tables
 from app.tmdb import TMDBClient, TMDBError
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-    create_db_and_tables()
+    db.create_db_and_tables()
+    with Session(db.engine) as session:
+        delete_unconfirmed_picks(session)
     app.state.tmdb = TMDBClient(get_settings().tmdb_token)
     yield
     await app.state.tmdb.aclose()

@@ -1,10 +1,12 @@
 import random
+from datetime import UTC, datetime, timedelta
 from collections import Counter
 from collections.abc import Callable, Iterator
 from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy import Engine
 from sqlmodel import Session, select
 
 from app.api.picks import choose, get_rng
@@ -240,22 +242,21 @@ def test_invalid_request_is_422(client: TestClient, body: dict[str, Any]) -> Non
 # --- saving and confirming ---
 
 
-def test_pick_is_saved_unconfirmed(
+def test_pick_is_not_saved_until_confirmed(
     client: TestClient, make_movie: MakeMovie, seed_rng: SeedRng, session: Session
 ) -> None:
     movie = make_movie()
 
     body = _pick(client, "wheel_weighted")
 
-    pick = session.get(Pick, body["pick_id"])
-    assert pick is not None
-    assert pick.movie_id == movie.id == body["winner"]["id"]
-    assert pick.method == PickMethod.wheel_weighted == body["method"]
-    assert pick.confirmed is False
+    assert isinstance(body["pick_id"], str)
+    assert body["winner"]["id"] == movie.id
+    assert session.exec(select(Pick)).all() == []
     assert body["winner"]["confirmed_pick_method"] is None
+    assert body["winner"]["awaiting_verdict"] is False
 
 
-def test_confirm_pick(client: TestClient, make_movie: MakeMovie, seed_rng: SeedRng) -> None:
+def test_confirm_pick(client: TestClient, make_movie: MakeMovie, seed_rng: SeedRng, session: Session) -> None:
     movie = make_movie()
     pick_id = _pick(client, "top_rated")["pick_id"]
 
@@ -263,13 +264,17 @@ def test_confirm_pick(client: TestClient, make_movie: MakeMovie, seed_rng: SeedR
 
     assert response.status_code == 200
     body = response.json()
-    assert body["id"] == pick_id
     assert body["movie_id"] == movie.id
+    assert body["method"] == "top_rated"
     assert body["confirmed"] is True
-    # Confirming again is harmless.
-    assert client.post(f"/api/picks/{pick_id}/confirm").json()["confirmed"] is True
+    # Confirming again returns the same saved pick, without a second row.
+    again = client.post(f"/api/picks/{pick_id}/confirm").json()
+    assert again["id"] == body["id"]
+    assert len(session.exec(select(Pick)).all()) == 1
     # The movie now knows it's been picked, for the "rate it after watching" reminder.
-    assert client.get(f"/api/movies/{movie.id}").json()["confirmed_pick_method"] == "top_rated"
+    read = client.get(f"/api/movies/{movie.id}").json()
+    assert read["confirmed_pick_method"] == "top_rated"
+    assert read["awaiting_verdict"] is True
 
 
 def test_confirmed_pick_method_is_the_latest_confirmed(
@@ -285,8 +290,69 @@ def test_confirmed_pick_method_is_the_latest_confirmed(
     assert client.get(f"/api/movies/{movie.id}").json()["confirmed_pick_method"] == "wheel_weighted"
 
 
-def test_confirm_missing_pick_is_404(client: TestClient) -> None:
-    response = client.post("/api/picks/123/confirm")
+def test_confirm_unknown_pick_is_404(client: TestClient) -> None:
+    response = client.post("/api/picks/not-a-pick/confirm")
 
     assert response.status_code == 404
-    assert response.json() == {"detail": "Pick not found"}
+    assert response.json() == {"detail": "This pick has expired. Pick again."}
+
+
+def test_confirm_after_the_movie_was_deleted_is_404(
+    client: TestClient, make_movie: MakeMovie, seed_rng: SeedRng
+) -> None:
+    movie = make_movie()
+    pick_id = _pick(client, "top_rated")["pick_id"]
+    client.delete(f"/api/movies/{movie.id}")
+
+    response = client.post(f"/api/picks/{pick_id}/confirm")
+
+    assert response.status_code == 404
+    assert response.json() == {"detail": "Movie not found"}
+
+
+def test_old_unconfirmed_picks_are_deleted_on_startup(engine: Engine, session: Session, make_movie: MakeMovie) -> None:
+    movie = make_movie()
+    assert movie.id is not None
+    session.add(Pick(movie_id=movie.id, method=PickMethod.top_rated, confirmed=False))
+    session.add(Pick(movie_id=movie.id, method=PickMethod.wheel_random, confirmed=True))
+    session.commit()
+
+    with TestClient(app):  # runs the lifespan again
+        pass
+
+    session.expire_all()
+    assert [pick.method for pick in session.exec(select(Pick)).all()] == [PickMethod.wheel_random]
+
+
+# --- "rate it after watching" ---
+
+
+def _confirm(client: TestClient) -> None:
+    pick_id = _pick(client, "top_rated")["pick_id"]
+    assert client.post(f"/api/picks/{pick_id}/confirm").status_code == 200
+
+
+def test_moved_back_to_watchlist_is_not_awaiting_until_picked_again(
+    client: TestClient, make_movie: MakeMovie, seed_rng: SeedRng, session: Session
+) -> None:
+    movie = make_movie()
+    assert movie.id is not None
+    _confirm(client)
+    client.post(f"/api/movies/{movie.id}/watched", json={"fuf_verdict": 4})
+
+    moved = client.patch(f"/api/movies/{movie.id}", json={"status": "watchlist"}).json()
+
+    # Verdicts and the last watch date are kept; the old pick doesn't ask for a rating again.
+    assert moved["status"] == "watchlist"
+    assert moved["fuf_verdict"] == 4
+    assert moved["watched_on"] == movie_night_date().isoformat()
+    assert moved["confirmed_pick_method"] == "top_rated"
+    assert moved["awaiting_verdict"] is False
+
+    # Picked again on a later movie night.
+    later = datetime.now(UTC) + timedelta(days=1)
+    session.add(Pick(movie_id=movie.id, method=PickMethod.wheel_random, picked_at=later))
+    session.commit()
+    read = client.get(f"/api/movies/{movie.id}").json()
+    assert read["confirmed_pick_method"] == "wheel_random"
+    assert read["awaiting_verdict"] is True

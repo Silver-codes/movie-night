@@ -9,7 +9,8 @@ const MAX_STARS = 5
 const SIZES = {
   xs: { star: 'size-5', button: 'p-0.5', avatar: 'xs', gap: 'gap-1' },
   sm: { star: 'size-6', button: 'p-0.5', avatar: 'sm', gap: 'gap-2' },
-  md: { star: 'size-8', button: 'p-1', avatar: 'md', gap: 'gap-3' },
+  // Less padding on phones, so avatar + name + five stars fit a 375px drawer.
+  md: { star: 'size-8', button: 'p-0.5 sm:p-1', avatar: 'md', gap: 'gap-3' },
 } as const
 
 type Props = {
@@ -42,20 +43,33 @@ export function StarRating({ person, value, onChange, size = 'md', label, showNa
   }
 
   function onKeyDown(event: KeyboardEvent<HTMLDivElement>) {
-    const delta = { ArrowRight: 1, ArrowUp: 1, ArrowLeft: -1, ArrowDown: -1 }[event.key]
-    if (delta === undefined) {
+    const current = value ?? 0
+    const next = {
+      ArrowRight: current + 1,
+      ArrowUp: current + 1,
+      ArrowLeft: current - 1,
+      ArrowDown: current - 1,
+      Home: 1,
+      End: MAX_STARS,
+    }[event.key]
+    if (next === undefined) {
       return
     }
     event.preventDefault()
-    const next = Math.min(MAX_STARS, Math.max(1, (value ?? 0) + delta))
-    onChange(next)
-    buttons.current[next - 1]?.focus()
+    const stars = Math.min(MAX_STARS, Math.max(1, next))
+    onChange(stars)
+    buttons.current[stars - 1]?.focus()
   }
 
   return (
     <div className={`flex items-center ${sizes.gap}`}>
-      <PersonAvatar person={person} size={sizes.avatar} />
-      {showName && <span className={`w-14 text-sm font-semibold ${info.textClass}`}>{info.name}</span>}
+      <PersonAvatar person={person} size={sizes.avatar} decorative />
+      {/* The radiogroup's label already says whose stars these are. */}
+      {showName && (
+        <span aria-hidden="true" className={`w-14 text-sm font-semibold ${info.textClass}`}>
+          {info.name}
+        </span>
+      )}
       <div
         role="radiogroup"
         aria-label={label ?? `${info.name}'s stars`}

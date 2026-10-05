@@ -7,13 +7,13 @@ const KIND_STYLES: Record<ToastKind, { accent: string; iconColor: string; icon: 
   info: { accent: 'border-l-accent', iconColor: 'text-accent', icon: '★' },
 }
 
-/** Renders the toast store: above the tab bar on phones, bottom-right on desktop. */
+/** Renders the toast store: at the top on phones (clear of the tab bar and sticky action bars), bottom-right on desktop. */
 export function Toaster() {
   const toasts = useToasts()
   return (
     <div
       aria-live="polite"
-      className="pointer-events-none fixed inset-x-0 bottom-[calc(5rem+env(safe-area-inset-bottom))] z-50 flex flex-col items-center gap-2 px-4 md:inset-x-auto md:right-6 md:bottom-6 md:items-end"
+      className="pointer-events-none fixed inset-x-0 top-[calc(0.75rem+env(safe-area-inset-top))] z-[60] flex flex-col items-center gap-2 px-4 md:inset-x-auto md:top-auto md:right-6 md:bottom-6 md:items-end"
     >
       {toasts.map((t) => (
         <div

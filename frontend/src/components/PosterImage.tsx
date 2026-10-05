@@ -5,24 +5,36 @@ type Props = {
   src: string | null
   title: string
   className?: string
+  /** Empty alt text: for posters inside a button/link that already names the movie. */
+  decorative?: boolean
+  /** Small thumbnails (about w-12 and below): the fallback shows only a small icon. */
+  compact?: boolean
 }
 
 /** A 2:3 poster that falls back to a film icon when there's no image (or it fails to load). It fills its container; for a fixed size pass a width class (e.g. `w-24`). */
-export function PosterImage({ src, title, className = '' }: Props) {
-  const [failed, setFailed] = useState(false)
+export function PosterImage({ src, title, className = '', decorative = false, compact = false }: Props) {
+  // Remember which URL failed, so a new `src` gets its own try.
+  const [failedSrc, setFailedSrc] = useState<string | null>(null)
   return (
     <div className={`relative aspect-2/3 overflow-hidden rounded-xl bg-ink-800 ring-1 ring-white/5 ${className}`}>
-      {src && !failed ? (
+      {src && src !== failedSrc ? (
         <img
           src={src}
-          alt={`Poster of ${title}`}
+          alt={decorative ? '' : `Poster of ${title}`}
           loading="lazy"
           decoding="async"
-          onError={() => setFailed(true)}
+          onError={() => setFailedSrc(src)}
           className="size-full object-cover"
         />
+      ) : compact ? (
+        <div className="grid size-full place-items-center text-faint" aria-hidden={decorative || undefined}>
+          <FilmIcon className="size-4" />
+        </div>
       ) : (
-        <div className="flex size-full flex-col items-center justify-center gap-2 p-3 text-center text-faint">
+        <div
+          className="flex size-full flex-col items-center justify-center gap-2 p-3 text-center text-faint"
+          aria-hidden={decorative || undefined}
+        >
           <FilmIcon className="size-8" />
           <span className="line-clamp-3 text-xs">{title}</span>
         </div>

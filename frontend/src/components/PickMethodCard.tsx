@@ -14,9 +14,9 @@ export function PickMethodCard({ method, icon, checked, onSelect }: Props) {
   return (
     <motion.label
       whileHover={{ y: -3 }}
-      whileTap={{ scale: 0.98 }}
       transition={{ type: 'spring', stiffness: 400, damping: 28 }}
-      className={`relative flex cursor-pointer gap-4 rounded-2xl p-4 ring-1 transition has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-accent sm:flex-col sm:p-5 ${
+      // Press feedback in CSS: Motion's `whileTap` would add a second tab stop next to the radio.
+      className={`relative flex cursor-pointer gap-4 rounded-2xl p-4 ring-1 transition active:scale-[0.98] has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-accent sm:flex-col sm:p-5 ${
         checked
           ? 'bg-accent-soft ring-accent shadow-lg shadow-accent/10'
           : 'bg-ink-900 ring-ink-700 hover:ring-ink-600'

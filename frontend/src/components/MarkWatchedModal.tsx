@@ -25,19 +25,32 @@ export function MarkWatchedModal({ movie, open, onClose, onDone }: Props) {
   )
 }
 
-const EMPTY_VERDICTS: Record<Person, Stars> = { fuf: null, cookie: null }
-const EMPTY_NOTES: Record<Person, string> = { fuf: '', cookie: '' }
+function storedVerdict(movie: Movie, person: Person): Stars {
+  return person === 'fuf' ? movie.fuf_verdict : movie.cookie_verdict
+}
+
+function storedNote(movie: Movie, person: Person): string {
+  return (person === 'fuf' ? movie.fuf_note : movie.cookie_note) ?? ''
+}
 
 function MarkWatchedForm({ movie, onCancel, onDone }: { movie: Movie; onCancel: () => void; onDone: () => void }) {
   const watched = useMarkWatched()
   const [tonight] = useState(movieNightDate)
   const [date, setDate] = useState(tonight)
-  const [verdicts, setVerdicts] = useState(EMPTY_VERDICTS)
-  const [notes, setNotes] = useState(EMPTY_NOTES)
+  // A movie moved back to the watchlist keeps its verdicts and notes: start from those.
+  const [verdicts, setVerdicts] = useState<Record<Person, Stars>>(() => ({
+    fuf: storedVerdict(movie, 'fuf'),
+    cookie: storedVerdict(movie, 'cookie'),
+  }))
+  const [notes, setNotes] = useState<Record<Person, string>>(() => ({
+    fuf: storedNote(movie, 'fuf'),
+    cookie: storedNote(movie, 'cookie'),
+  }))
+  const prefilled = PEOPLE.some((p) => storedVerdict(movie, p.id) !== null || storedNote(movie, p.id) !== '')
 
   function onSubmit(event: FormEvent) {
     event.preventDefault()
-    // Only send what was filled in; without `watched_on` the server uses tonight's date.
+    // Only send what changed (a cleared verdict or note as null); without `watched_on` the server uses tonight's date.
     const body: MovieWatched = {}
     if (date && date !== tonight) {
       body.watched_on = date
@@ -45,11 +58,11 @@ function MarkWatchedForm({ movie, onCancel, onDone }: { movie: Movie; onCancel: 
     for (const person of PEOPLE) {
       const verdict = verdicts[person.id]
       const note = notes[person.id].trim()
-      if (verdict !== null) {
+      if (verdict !== storedVerdict(movie, person.id)) {
         body[`${person.id}_verdict` as const] = verdict
       }
-      if (note) {
-        body[`${person.id}_note` as const] = note
+      if (note !== storedNote(movie, person.id)) {
+        body[`${person.id}_note` as const] = note || null
       }
     }
     watched.mutate(
@@ -93,7 +106,9 @@ function MarkWatchedForm({ movie, onCancel, onDone }: { movie: Movie; onCancel: 
         ))}
       </div>
       <p className="-mt-2 text-sm text-faint">
-        Not sure yet? Leave it empty and rate it later from the movie's details.
+        {prefilled
+          ? 'Filled in with your verdicts from last time. Change them if you see it differently now.'
+          : "Not sure yet? Leave it empty and rate it later from the movie's details."}
       </p>
 
       <div className="flex gap-2">

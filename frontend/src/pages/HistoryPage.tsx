@@ -2,7 +2,9 @@ import type { ReactNode } from 'react'
 import { Link } from 'react-router'
 import { useHistory } from '../api/historyHooks'
 import type { HistoryEntry } from '../api/types'
+import { PRIMARY_BUTTON_CLASS } from '../components/buttonStyles'
 import { EmptyState } from '../components/EmptyState'
+import { ErrorState } from '../components/ErrorState'
 import { HistoryEntryCard } from '../components/HistoryEntryCard'
 import { HistoryStats } from '../components/HistoryStats'
 import { MovieDrawer } from '../components/MovieDrawer'
@@ -11,9 +13,6 @@ import { PageHeader } from '../components/PageHeader'
 import { Skeleton } from '../components/Skeleton'
 import { formatMonth } from '../lib/format'
 import { useMovieParam } from '../lib/useMovieParam'
-
-const buttonClass =
-  'inline-flex items-center gap-2 rounded-xl bg-accent px-5 py-2.5 font-semibold text-ink-950 transition hover:bg-accent-strong'
 
 type MonthGroup = { month: string; entries: HistoryEntry[] }
 
@@ -34,7 +33,7 @@ function groupByMonth(entries: HistoryEntry[]): MonthGroup[] {
 
 function HistorySkeleton() {
   return (
-    <div aria-label="Loading history" className="flex flex-col gap-10">
+    <div role="status" aria-label="Loading history" className="flex flex-col gap-10">
       <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
         {Array.from({ length: 6 }, (_, i) => (
           <Skeleton key={i} className="h-28 rounded-2xl" />
@@ -57,26 +56,16 @@ export function HistoryPage() {
   let content: ReactNode
   if (history.isPending) {
     content = <HistorySkeleton />
-  } else if (history.isError) {
-    content = (
-      <EmptyState
-        title="Couldn't load your history"
-        action={
-          <button type="button" className={buttonClass} onClick={() => void history.refetch()}>
-            Try again
-          </button>
-        }
-      >
-        {history.error.message}
-      </EmptyState>
-    )
+  } else if (!history.data) {
+    // Only when there's nothing to show: a failed background refetch keeps the old data on screen.
+    content = <ErrorState what="your history" error={history.error} onRetry={() => void history.refetch()} />
   } else if (history.data.movies.length === 0) {
     content = (
       <EmptyState
         title="Nothing watched yet"
         icon={<HistoryIcon className="size-7" />}
         action={
-          <Link to="/pick" className={buttonClass}>
+          <Link to="/pick" className={PRIMARY_BUTTON_CLASS}>
             <PickIcon className="size-5" />
             Pick tonight's movie
           </Link>

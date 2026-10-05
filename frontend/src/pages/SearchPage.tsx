@@ -2,6 +2,7 @@ import { useEffect, useState, type ReactNode } from 'react'
 import { useSearchParams } from 'react-router'
 import { useSearch } from '../api/searchHooks'
 import { EmptyState } from '../components/EmptyState'
+import { ErrorState } from '../components/ErrorState'
 import { SearchIcon } from '../components/NavIcons'
 import { PageHeader } from '../components/PageHeader'
 import { POSTER_GRID_CLASS } from '../components/posterGrid'
@@ -28,29 +29,14 @@ export function SearchPage() {
   let content: ReactNode
   if (q === '') {
     content = (
-      <EmptyState title="What are we watching?" icon={<SearchIcon className="size-7" />}>
+      <EmptyState title="Search for a movie" icon={<SearchIcon className="size-7" />}>
         Type a title above. Add anything that looks good, with a quick hype rating if you like.
       </EmptyState>
     )
   } else if (search.isPending) {
     content = <PosterGridSkeleton count={12} />
-  } else if (search.isError) {
-    content = (
-      <EmptyState
-        title="Search didn't work"
-        action={
-          <button
-            type="button"
-            onClick={() => void search.refetch()}
-            className="rounded-xl bg-accent px-5 py-2.5 font-semibold text-ink-950 transition hover:bg-accent-strong"
-          >
-            Try again
-          </button>
-        }
-      >
-        {search.error.message}
-      </EmptyState>
-    )
+  } else if (!search.data) {
+    content = <ErrorState what="search results" error={search.error} onRetry={() => void search.refetch()} />
   } else if (search.data.length === 0) {
     content = (
       <EmptyState title="Nothing found" icon={<SearchIcon className="size-7" />}>

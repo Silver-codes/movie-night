@@ -98,13 +98,27 @@ class Movie(MovieBase, table=True):
         genres = func.json_each(cls.genres).table_valued("value")
         return exists().select_from(genres).where(func.lower(column("value")) == genre.casefold())
 
+    def _latest_confirmed_pick(self) -> "Pick | None":
+        confirmed = [pick for pick in self.picks if pick.confirmed]
+        return max(confirmed, key=lambda pick: (pick.picked_at, pick.id or 0), default=None)
+
     @property
     def confirmed_pick_method(self) -> PickMethod | None:
         """How the movie was picked the last time someone said "we're watching this"."""
-        confirmed = [pick for pick in self.picks if pick.confirmed]
-        if not confirmed:
-            return None
-        return max(confirmed, key=lambda pick: (pick.picked_at, pick.id or 0)).method
+        pick = self._latest_confirmed_pick()
+        return pick.method if pick else None
+
+    @property
+    def awaiting_verdict(self) -> bool:
+        """On the watchlist with a confirmed pick from a later movie night than its last watch:
+        "rate it after watching". A movie moved back to the watchlist isn't awaiting until it's picked again."""
+        pick = self._latest_confirmed_pick()
+        if self.status != MovieStatus.watchlist or pick is None:
+            return False
+        # SQLite gives back naive datetimes; they're UTC.
+        picked_at = pick.picked_at if pick.picked_at.tzinfo else pick.picked_at.replace(tzinfo=UTC)
+        picked_on = movie_night_date(picked_at.astimezone().replace(tzinfo=None))
+        return self.watched_on is None or picked_on > self.watched_on
 
     def apply_update(self, data: "MovieUpdate") -> None:
         changes = data.model_dump(exclude_unset=True)
@@ -162,8 +176,10 @@ class MovieRead(MovieBase):
     id: int
     added_at: datetime
     skipped_on: date | None = Field(default=None, exclude=True)
-    # Set once a pick was confirmed; with status == watchlist it means "rate it after watching".
+    # How the latest confirmed pick was made (History badge).
     confirmed_pick_method: PickMethod | None = None
+    # A confirmed pick that still needs watching and rating ("rate it after watching").
+    awaiting_verdict: bool = False
 
     @computed_field  # type: ignore[prop-decorator]
     @property
@@ -187,7 +203,8 @@ class MovieRead(MovieBase):
 class PickBase(SQLModel):
     movie_id: int = Field(foreign_key="movie.id", ondelete="CASCADE", index=True)
     method: PickMethod
-    confirmed: bool = False
+    # Only confirmed picks are saved now; the column stays for older rows (unconfirmed ones are deleted on startup).
+    confirmed: bool = True
 
 
 class Pick(PickBase, table=True):
@@ -216,7 +233,8 @@ class PickCandidate(SQLModel):
 
 
 class PickResult(SQLModel):
-    pick_id: int
+    # Token of the pending pick; POST /picks/{pick_id}/confirm saves it.
+    pick_id: str
     method: PickMethod
     winner: MovieRead
     # In display order (wheel slices / top-rated ranking); probabilities sum to 1.

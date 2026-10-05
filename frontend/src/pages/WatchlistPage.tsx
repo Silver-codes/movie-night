@@ -3,7 +3,9 @@ import { useMemo, type ReactNode } from 'react'
 import { Link, useSearchParams } from 'react-router'
 import { useMovies } from '../api/movieHooks'
 import type { MovieFilters, Person } from '../api/types'
+import { PRIMARY_BUTTON_CLASS } from '../components/buttonStyles'
 import { EmptyState } from '../components/EmptyState'
+import { ErrorState } from '../components/ErrorState'
 import { MovieDrawer } from '../components/MovieDrawer'
 import { SearchIcon, WatchlistIcon } from '../components/NavIcons'
 import { PageHeader } from '../components/PageHeader'
@@ -25,9 +27,6 @@ function parsePerson(value: string | null): Person | null {
 function parseSort(value: string | null): WatchlistSort {
   return WATCHLIST_SORTS.find((s) => s.value === value)?.value ?? DEFAULT_SORT
 }
-
-const buttonClass =
-  'inline-flex items-center gap-2 rounded-xl bg-accent px-5 py-2.5 font-semibold text-ink-950 transition hover:bg-accent-strong'
 
 export function WatchlistPage() {
   const [params, setParams] = useSearchParams()
@@ -68,34 +67,16 @@ export function WatchlistPage() {
   let content: ReactNode
   if (all.isPending) {
     content = <PosterGridSkeleton />
-  } else if (all.isError || filtered.isError) {
-    const error = all.error ?? filtered.error
-    content = (
-      <EmptyState
-        title="Couldn't load the watchlist"
-        action={
-          <button
-            type="button"
-            className={buttonClass}
-            onClick={() => {
-              void all.refetch()
-              void filtered.refetch()
-            }}
-          >
-            Try again
-          </button>
-        }
-      >
-        {error?.message}
-      </EmptyState>
-    )
+  } else if (!all.data) {
+    // Only when there's nothing to show: a failed background refetch keeps the old data on screen.
+    content = <ErrorState what="the watchlist" error={all.error} onRetry={() => void all.refetch()} />
   } else if (all.data.length === 0) {
     content = (
       <EmptyState
         title="Your watchlist is empty"
         icon={<WatchlistIcon className="size-7" />}
         action={
-          <Link to="/search" className={buttonClass}>
+          <Link to="/search" className={PRIMARY_BUTTON_CLASS}>
             <SearchIcon className="size-5" />
             Find a movie
           </Link>
@@ -118,6 +99,8 @@ export function WatchlistPage() {
         />
         {filtered.isPending ? (
           <PosterGridSkeleton />
+        ) : !filtered.data ? (
+          <ErrorState what="the watchlist" error={filtered.error} onRetry={() => void filtered.refetch()} />
         ) : filtered.data.length === 0 ? (
           <EmptyState
             title="No matches"
@@ -125,7 +108,7 @@ export function WatchlistPage() {
               hasFilters && (
                 <button
                   type="button"
-                  className={buttonClass}
+                  className={PRIMARY_BUTTON_CLASS}
                   onClick={() => setFilterParams({ genre: null, unrated: null })}
                 >
                   Clear filters

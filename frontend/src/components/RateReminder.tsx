@@ -11,7 +11,7 @@ export function RateReminder({ movie }: { movie: Movie }) {
       to={`/watchlist?movie=${movie.id}`}
       className="group flex items-center gap-3 rounded-2xl bg-accent-soft p-3 pr-4 ring-1 ring-accent/40 transition hover:ring-accent"
     >
-      <PosterImage src={posterUrl(movie.poster_path, 'w185')} title={movie.title} className="w-10 shrink-0 rounded-md!" />
+      <PosterImage src={posterUrl(movie.poster_path, 'w185')} title={movie.title} decorative compact className="w-10 shrink-0 rounded-md!" />
       <span className="min-w-0 flex-1">
         <span className="block truncate font-semibold">{movie.title}</span>
         <span className="block text-sm text-muted">

@@ -36,6 +36,8 @@ export type Movie = {
   added_at: string
   /** Latest confirmed pick; with status "watchlist" it means "rate it after watching". */
   confirmed_pick_method: PickMethod | null
+  /** A confirmed pick still to be watched and rated ("rate it after watching"). */
+  awaiting_verdict: boolean
   /** Sum of both hype stars, nulls as 0. */
   hype_total: number
   skipped_tonight: boolean
@@ -105,7 +107,8 @@ export type PickCandidate = {
 }
 
 export type PickResult = {
-  pick_id: number
+  /** Token of the pending pick; only confirming saves it. */
+  pick_id: string
   method: PickMethod
   winner: Movie
   /** Display order (wheel slices / top-rated ranking); probabilities sum to 1. */

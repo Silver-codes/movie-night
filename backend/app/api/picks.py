@@ -1,9 +1,13 @@
 import random
+import threading
+import uuid
+from collections import OrderedDict
 from collections.abc import Sequence
+from dataclasses import dataclass
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlmodel import Session, col, select
+from sqlmodel import Session, col, delete, select
 
 from app.db import get_session
 from app.models import (
@@ -27,6 +31,52 @@ _rng = random.Random()
 def get_rng() -> random.Random:
     """Random source for picks; tests override it with a seeded one."""
     return _rng
+
+
+@dataclass
+class PendingPick:
+    movie_id: int
+    method: PickMethod
+    # Set once confirmed, so confirming again returns the same saved pick.
+    saved_id: int | None = None
+
+
+class PendingPicks:
+    """Picks that were shown but not confirmed yet. Only a confirmed pick is saved to the database;
+    these live in memory (the most recent `limit`) and are gone after a restart: then just pick again."""
+
+    def __init__(self, limit: int = 100) -> None:
+        self._picks: OrderedDict[str, PendingPick] = OrderedDict()
+        self._limit = limit
+        self._lock = threading.Lock()
+
+    def add(self, movie_id: int, method: PickMethod) -> str:
+        token = uuid.uuid4().hex
+        with self._lock:
+            self._picks[token] = PendingPick(movie_id, method)
+            while len(self._picks) > self._limit:
+                self._picks.popitem(last=False)
+        return token
+
+    def get(self, token: str) -> PendingPick | None:
+        with self._lock:
+            return self._picks.get(token)
+
+
+_pending = PendingPicks()
+
+
+def get_pending_picks() -> PendingPicks:
+    return _pending
+
+
+PendingDep = Annotated[PendingPicks, Depends(get_pending_picks)]
+
+
+def delete_unconfirmed_picks(session: Session) -> None:
+    """Remove rows from before picks were saved only on confirm."""
+    session.exec(delete(Pick).where(col(Pick.confirmed).is_(False)))
+    session.commit()
 
 
 def _hype_total(movie: Movie) -> int:
@@ -68,6 +118,7 @@ def choose(
 def create_pick(
     body: PickRequest,
     session: SessionDep,
+    pending: PendingDep,
     rng: Annotated[random.Random, Depends(get_rng)],
 ) -> PickResult:
     query = select(Movie).where(Movie.pickable_filter())
@@ -81,14 +132,9 @@ def create_pick(
 
     winner, candidates = choose(body.method, movies, rng)
     assert winner.id is not None
-    pick = Pick(movie_id=winner.id, method=body.method)
-    session.add(pick)
-    session.commit()
-    session.refresh(pick)
-    assert pick.id is not None
     return PickResult(
-        pick_id=pick.id,
-        method=pick.method,
+        pick_id=pending.add(winner.id, body.method),
+        method=body.method,
         winner=MovieRead.model_validate(winner),
         candidates=[
             PickCandidate(movie=MovieRead.model_validate(movie), weight=weight, probability=probability)
@@ -98,12 +144,18 @@ def create_pick(
 
 
 @router.post("/{pick_id}/confirm")
-def confirm_pick(pick_id: int, session: SessionDep) -> PickRead:
-    pick = session.get(Pick, pick_id)
-    if pick is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Pick not found")
-    pick.confirmed = True
+def confirm_pick(pick_id: str, session: SessionDep, pending: PendingDep) -> PickRead:
+    """Save a pick shown by POST /picks ("we're watching this"). Confirming twice is fine."""
+    entry = pending.get(pick_id)
+    if entry is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "This pick has expired. Pick again.")
+    if entry.saved_id is not None and (saved := session.get(Pick, entry.saved_id)) is not None:
+        return PickRead.model_validate(saved)
+    if session.get(Movie, entry.movie_id) is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Movie not found")
+    pick = Pick(movie_id=entry.movie_id, method=entry.method, confirmed=True)
     session.add(pick)
     session.commit()
     session.refresh(pick)
+    entry.saved_id = pick.id
     return PickRead.model_validate(pick)

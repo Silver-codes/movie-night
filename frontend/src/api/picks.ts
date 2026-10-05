@@ -6,7 +6,7 @@ export function createPick(body: PickRequest): Promise<PickResult> {
   return apiFetch<PickResult>('/api/picks', { method: 'POST', json: body })
 }
 
-/** "We're watching this!" (idempotent). */
-export function confirmPick(pickId: number): Promise<PickRead> {
+/** "We're watching this!": saves the pick (idempotent; 404 once the server forgot it, e.g. after a restart). */
+export function confirmPick(pickId: string): Promise<PickRead> {
   return apiFetch<PickRead>(`/api/picks/${pickId}/confirm`, { method: 'POST' })
 }

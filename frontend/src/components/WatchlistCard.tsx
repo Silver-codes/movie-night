@@ -10,7 +10,11 @@ type Props = {
   onOpen: (movie: Movie) => void
 }
 
-/** Watchlist poster with both people's hype stars and the total; opens the detail drawer. */
+/**
+ * Watchlist poster with both people's hype stars and the total; opens the detail drawer.
+ * The title is the button (so it's named just by the title); its `after:` layer stretches
+ * over the whole card, so tapping anywhere opens it.
+ */
 export function WatchlistCard({ movie, onOpen }: Props) {
   return (
     <motion.li
@@ -20,18 +24,18 @@ export function WatchlistCard({ movie, onOpen }: Props) {
       exit={{ opacity: 0, scale: 0.96 }}
       transition={{ type: 'spring', stiffness: 400, damping: 32 }}
     >
-      <motion.button
-        type="button"
-        onClick={() => onOpen(movie)}
+      <motion.article
         whileHover={{ y: -4 }}
-        whileTap={{ scale: 0.98 }}
         transition={{ type: 'spring', stiffness: 400, damping: 28 }}
-        className="group flex w-full flex-col gap-2.5 rounded-xl text-left"
+        // Press feedback in CSS: Motion's `whileTap` would make the article itself a tab stop.
+        // The focus ring goes around the whole card, not just the title.
+        className="group relative flex flex-col gap-2.5 rounded-xl outline-offset-4 outline-accent transition-[scale] active:scale-[0.98] has-[:focus-visible]:outline-2"
       >
         <div className="relative w-full">
           <PosterImage
             src={posterUrl(movie.poster_path)}
             title={movie.title}
+            decorative
             className={`shadow-lg shadow-black/40 transition group-hover:shadow-xl group-hover:shadow-black/60 ${movie.skipped_tonight ? 'opacity-50 grayscale' : ''}`}
           />
           <span
@@ -52,8 +56,14 @@ export function WatchlistCard({ movie, onOpen }: Props) {
         </div>
         <div className="flex w-full flex-col gap-1.5">
           <h3 className="line-clamp-2 font-sans text-sm leading-snug font-semibold">
-            {movie.title}
-            {movie.year && <span className="font-normal text-muted"> ({movie.year})</span>}
+            <button
+              type="button"
+              onClick={() => onOpen(movie)}
+              className="text-left outline-none after:absolute after:inset-0 after:rounded-xl"
+            >
+              {movie.title}
+              {movie.year && <span className="font-normal text-muted"> ({movie.year})</span>}
+            </button>
           </h3>
           {PEOPLE.map((person) => (
             <StarDisplay
@@ -63,7 +73,7 @@ export function WatchlistCard({ movie, onOpen }: Props) {
             />
           ))}
         </div>
-      </motion.button>
+      </motion.article>
     </motion.li>
   )
 }
