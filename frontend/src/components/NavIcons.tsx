@@ -91,3 +91,49 @@ export function CloseIcon(props: IconProps) {
     </Icon>
   )
 }
+
+export function TrophyIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M7.5 4.5h9v5a4.5 4.5 0 0 1-9 0v-5Z" />
+      <path d="M7.5 6.5h-3a3 3 0 0 0 3 3.5M16.5 6.5h3a3 3 0 0 1-3 3.5" />
+      <path d="M12 14v3.5M8.5 20h7M9.5 17.5h5" />
+    </Icon>
+  )
+}
+
+/** A wheel with one big and some small slices. */
+export function WeightedWheelIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <circle cx="12" cy="12" r="8.5" />
+      <path d="M12 12V3.5M12 12l7.4 4.2M12 12l-3.6 7.7" />
+    </Icon>
+  )
+}
+
+export function SoundOnIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M4.5 9.5h3l4.5-4v13l-4.5-4h-3z" />
+      <path d="M15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11" />
+    </Icon>
+  )
+}
+
+export function SoundOffIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M4.5 9.5h3l4.5-4v13l-4.5-4h-3z" />
+      <path d="m16 9.5 5 5M21 9.5l-5 5" />
+    </Icon>
+  )
+}
+
+export function ArrowLeftIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M19 12H5M11 6l-6 6 6 6" />
+    </Icon>
+  )
+}

@@ -3,6 +3,7 @@ import { backdropUrl, posterUrl } from '../api/images'
 import { useDeleteMovie, useMarkWatched, useUpdateMovie } from '../api/movieHooks'
 import type { Movie } from '../api/types'
 import { formatRuntime } from '../lib/format'
+import { pickMethodLabel } from '../lib/pickMethods'
 import { toast } from '../lib/toast'
 import { PEOPLE } from '../people'
 import { PosterImage } from './PosterImage'
@@ -82,6 +83,15 @@ export function MovieDetails({ movie, onDone }: Props) {
             </p>
           </div>
         </header>
+
+        {movie.status === 'watchlist' && movie.confirmed_pick_method && (
+          <p className="rounded-xl bg-accent-soft px-4 py-3 text-sm ring-1 ring-accent/40">
+            <span className="font-semibold text-accent">
+              Your {pickMethodLabel(movie.confirmed_pick_method)} pick.
+            </span>{' '}
+            Rate it after watching: tap <span className="font-semibold">Mark watched</span> below.
+          </p>
+        )}
 
         {movie.genres.length > 0 && (
           <ul className="flex flex-wrap gap-1.5" aria-label="Genres">

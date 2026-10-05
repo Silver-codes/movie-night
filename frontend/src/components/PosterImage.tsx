@@ -7,11 +7,11 @@ type Props = {
   className?: string
 }
 
-/** A 2:3 poster that falls back to a film icon when there's no image (or it fails to load). */
+/** A 2:3 poster that falls back to a film icon when there's no image (or it fails to load). It fills its container; for a fixed size pass a width class (e.g. `w-24`). */
 export function PosterImage({ src, title, className = '' }: Props) {
   const [failed, setFailed] = useState(false)
   return (
-    <div className={`relative aspect-2/3 w-full overflow-hidden rounded-xl bg-ink-800 ring-1 ring-white/5 ${className}`}>
+    <div className={`relative aspect-2/3 overflow-hidden rounded-xl bg-ink-800 ring-1 ring-white/5 ${className}`}>
       {src && !failed ? (
         <img
           src={src}

@@ -2,7 +2,7 @@
 
 The user's planned prompts for upcoming steps. If the user says "do the next step" (or names a step), the prompt for it below is the task, together with its open points at the bottom. If the user sends their own prompt for a step, that wins; update this file to match. Don't implement steps ahead of time.
 
-Steps 1–7 (scaffold, models, TMDB/search, movie CRUD + tests, picking/history, frontend shell, Search + Watchlist pages) are done; see Status in `CLAUDE.md`.
+Steps 1–8 (scaffold, models, TMDB/search, movie CRUD + tests, picking/history, frontend shell, Search + Watchlist pages, Pick page) are done; see Status in `CLAUDE.md`.
 
 ## Step 5 — Picking and history (backend)
 
@@ -77,7 +77,7 @@ The user commits after this step; the backend is then complete and can be explor
 ## Open points to settle when the step comes up
 
 - **Step 5 (done):** candidates use `Movie.pickable_filter()`; `PickCreate`/`PickUpdate` replaced by `PickRequest`; paths unified as `/api/picks` and `/api/picks/{id}/confirm`; "average stars given" = verdicts only; `max_runtime` excludes unknown runtimes.
-- **Step 8 (prepared in step 5):** show "Rate it after watching" when `status == "watchlist"` and `confirmed_pick_method` is set on the movie. The wheel uses `PickResult.candidates` in the given order; for top_rated they are ranked by hype total (probability 0 below the tied top).
+- **Step 8 (done):** "Rate it after watching" shows when `status == "watchlist"` and `confirmed_pick_method` is set (Pick page banners + drawer). The wheel uses `PickResult.candidates` in the given order with slices sized by `probability`. Top rated calls `POST /api/picks` right away and shows the podium with the server's winner as #1 (others tied at the top are tagged). "Pick this" only reveals that winner and makes no new request. The winner screen has "Not tonight" (skip + pick again). The wheel tick sound is synthesized and can be turned off (stored in `localStorage`). Bundle is now ~555 kB.
 - **Step 6 (done):** own small toast store instead of a library; user changed the look to near-black + faint silver glow + blue accent (token `accent`), Outfit headings + Inter body; Fuf 🐻 lavender, Cookie 🍪 rose (change in `src/people.ts` + `--color-fuf/cookie` in `index.css`). Placeholder pages say "coming soon"; replace them, don't build around them.
 - **Step 6 vs conventions (decided):** keep the `src/api/` folder, one file per resource, not the single `src/api.ts` from the prompt. Also add `src/pages/` to the folder structure.
 - **Skip tonight UI (agreed):** the backend supports it (`skipped_tonight` in PATCH), but no frontend step mentions it. Add it in the detail drawer (step 7) and/or the Pick page (step 8).
