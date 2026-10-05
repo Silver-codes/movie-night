@@ -2,7 +2,7 @@ from enum import Enum
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Response, status
-from sqlalchemy import ColumnElement, and_, column, exists, func, or_
+from sqlalchemy import ColumnElement, and_, func, or_
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, col, select
 
@@ -45,11 +45,6 @@ def _save(session: Session, movie: Movie) -> MovieRead:
     session.commit()
     session.refresh(movie)
     return MovieRead.model_validate(movie)
-
-
-def _has_genre(genre: str) -> ColumnElement[bool]:
-    genres = func.json_each(Movie.genres).table_valued("value")
-    return exists().select_from(genres).where(func.lower(column("value")) == genre.casefold())
 
 
 def _unrated_by(person: Person) -> ColumnElement[bool]:
@@ -110,7 +105,7 @@ def list_movies(
     if status is not None:
         query = query.where(Movie.status == status)
     if genre:
-        query = query.where(_has_genre(genre))
+        query = query.where(Movie.has_genre(genre))
     if unrated_by is not None:
         query = query.where(_unrated_by(unrated_by))
     movies = session.exec(query.order_by(*_order_by(sort))).all()

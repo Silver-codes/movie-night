@@ -3,8 +3,8 @@ from enum import Enum
 from typing import Final, Literal, Self
 
 from pydantic import computed_field, model_validator
-from sqlalchemy import JSON, CheckConstraint, Column, ColumnElement, and_, or_
-from sqlmodel import Field, SQLModel, col
+from sqlalchemy import JSON, CheckConstraint, Column, ColumnElement, and_, column, exists, func, or_
+from sqlmodel import Field, Relationship, SQLModel, col
 
 PEOPLE: Final = ["fuf", "cookie"]
 Person = Literal["fuf", "cookie"]
@@ -80,6 +80,8 @@ class Movie(MovieBase, table=True):
     added_at: datetime = Field(default_factory=utc_now)
     # Movie night on which someone said "not tonight"; it expires on its own the next night.
     skipped_on: date | None = None
+    # The database deletes picks with their movie (ON DELETE CASCADE).
+    picks: list["Pick"] = Relationship(back_populates="movie", passive_deletes="all")
 
     @classmethod
     def pickable_filter(cls) -> ColumnElement[bool]:
@@ -89,6 +91,20 @@ class Movie(MovieBase, table=True):
             col(cls.status) == MovieStatus.watchlist,
             or_(skipped_on.is_(None), skipped_on != movie_night_date()),
         )
+
+    @classmethod
+    def has_genre(cls, genre: str) -> ColumnElement[bool]:
+        """Case-insensitive match against one of the movie's genres."""
+        genres = func.json_each(cls.genres).table_valued("value")
+        return exists().select_from(genres).where(func.lower(column("value")) == genre.casefold())
+
+    @property
+    def confirmed_pick_method(self) -> PickMethod | None:
+        """How the movie was picked the last time someone said "we're watching this"."""
+        confirmed = [pick for pick in self.picks if pick.confirmed]
+        if not confirmed:
+            return None
+        return max(confirmed, key=lambda pick: (pick.picked_at, pick.id or 0)).method
 
     def apply_update(self, data: "MovieUpdate") -> None:
         changes = data.model_dump(exclude_unset=True)
@@ -146,6 +162,8 @@ class MovieRead(MovieBase):
     id: int
     added_at: datetime
     skipped_on: date | None = Field(default=None, exclude=True)
+    # Set once a pick was confirmed; with status == watchlist it means "rate it after watching".
+    confirmed_pick_method: PickMethod | None = None
 
     @computed_field  # type: ignore[prop-decorator]
     @property
@@ -175,16 +193,63 @@ class PickBase(SQLModel):
 class Pick(PickBase, table=True):
     id: int | None = Field(default=None, primary_key=True)
     picked_at: datetime = Field(default_factory=utc_now)
+    movie: Movie = Relationship(back_populates="picks")
 
 
-class PickCreate(PickBase):
-    pass
+class PickRequest(SQLModel):
+    """POST /picks body: the server chooses among the pickable movies matching the filters."""
 
-
-class PickUpdate(SQLModel):
-    confirmed: bool | None = None
+    method: PickMethod
+    max_runtime: int | None = Field(default=None, ge=1, description="Minutes; unknown runtimes are excluded")
+    genre: str | None = None
 
 
 class PickRead(PickBase):
     id: int
     picked_at: datetime
+
+
+class PickCandidate(SQLModel):
+    movie: MovieRead
+    weight: float
+    probability: float
+
+
+class PickResult(SQLModel):
+    pick_id: int
+    method: PickMethod
+    winner: MovieRead
+    # In display order (wheel slices / top-rated ranking); probabilities sum to 1.
+    candidates: list[PickCandidate]
+
+
+# --- History ---
+
+
+class HistoryEntry(MovieRead):
+    average_verdict: float | None = None
+
+
+class PersonStats(SQLModel):
+    average_verdict: float | None = None
+    rated_count: int = 0
+
+
+class Disagreement(SQLModel):
+    movie: HistoryEntry
+    difference: int
+
+
+class HistoryStats(SQLModel):
+    total_watched: int
+    total_hours: float
+    top_genre: str | None = None
+    highest_rated: HistoryEntry | None = None
+    # Average verdict stars each person gave ("Fuf vs Cookie").
+    people: dict[Person, PersonStats]
+    biggest_disagreement: Disagreement | None = None
+
+
+class HistoryRead(SQLModel):
+    movies: list[HistoryEntry]
+    stats: HistoryStats

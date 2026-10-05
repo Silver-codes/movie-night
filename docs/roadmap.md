@@ -2,12 +2,12 @@
 
 The user's planned prompts for upcoming steps. If the user says "do the next step" (or names a step), the prompt for it below is the task, together with its open points at the bottom. If the user sends their own prompt for a step, that wins; update this file to match. Don't implement steps ahead of time.
 
-Steps 1–4 (scaffold, models, TMDB/search, movie CRUD + tests) are done; see Status in `CLAUDE.md`.
+Steps 1–5 (scaffold, models, TMDB/search, movie CRUD + tests, picking/history) are done; see Status in `CLAUDE.md`.
 
 ## Step 5 — Picking and history (backend)
 
 > Add picking and history:
-> - POST /api/pick {method: "top_rated" | "wheel_random" | "wheel_weighted", max_runtime?, genre?}
+> - POST /api/picks {method: "top_rated" | "wheel_random" | "wheel_weighted", max_runtime?, genre?}
 >   - Candidates: watchlist movies matching the optional filters. Return 400 if there are none.
 >   - top_rated: highest hype_total wins, with ties broken randomly.
 >   - wheel_random: uniform random choice.
@@ -76,10 +76,9 @@ The user commits after this step; the backend is then complete and can be explor
 
 ## Open points to settle when the step comes up
 
-- **Step 5:** pick candidates should use `Movie.pickable_filter()`, so movies skipped tonight are excluded too (the domain rule in CLAUDE.md). Picks are now chosen server-side, so `PickCreate` (client sends `movie_id`) is likely replaced by a pick request body. Paths mix `/api/pick` and `/api/picks/{id}`. Decide whether "average stars given" counts verdicts only or hype too.
-- **Step 8 depends on step 5:** the "Rate it after watching" reminder needs to know a movie has a confirmed pick and isn't watched yet. Expose that on the movie response in step 5 (e.g. a confirmed-pick field on `MovieRead`).
+- **Step 5 (done):** candidates use `Movie.pickable_filter()`; `PickCreate`/`PickUpdate` replaced by `PickRequest`; paths unified as `/api/picks` and `/api/picks/{id}/confirm`; "average stars given" = verdicts only; `max_runtime` excludes unknown runtimes.
+- **Step 8 (prepared in step 5):** show "Rate it after watching" when `status == "watchlist"` and `confirmed_pick_method` is set on the movie. The wheel uses `PickResult.candidates` in the given order; for top_rated they are ranked by hype total (probability 0 below the tied top).
 - **Step 6 vs conventions (decided):** keep the `src/api/` folder, one file per resource, not the single `src/api.ts` from the prompt. Also add `src/pages/` to the folder structure.
 - **Skip tonight UI (agreed):** the backend supports it (`skipped_tonight` in PATCH), but no frontend step mentions it. Add it in the detail drawer (step 7) and/or the Pick page (step 8).
-- **Step 5 "average stars given":** verdicts only, or hype too? Ask the user when step 5 starts.
 - **Step 9:** "date default today" should match the backend, which uses the movie-night date (it rolls over at 06:00), so the frontend can just omit `watched_on`.
 - **Step 11 vs conventions:** serving `frontend/dist` from FastAPI is an intended exception to "never mount routes outside `/api`". Mount static files plus an SPA fallback, without shadowing `/api`.
