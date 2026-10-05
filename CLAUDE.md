@@ -4,16 +4,20 @@ Small personal web app used by exactly two people, **Fuf** and **Cookie**, on on
 
 ## Key domain rules
 
-- The two people are fixed: **Fuf** and **Cookie**. They are not users or accounts — model them as a fixed value (e.g. an enum), not a table with sign-up.
+- The two people are fixed: **Fuf** and **Cookie**. They are not users or accounts — they're the constant `PEOPLE = ["fuf", "cookie"]` in `app/models.py`, with per-person columns (`fuf_*`, `cookie_*`), no user table.
 - No accounts, no logins, no auth, no permissions. Either person can edit everything (including the other person's ratings).
-- Ratings are integers 1–5, one per person per movie (a movie may be unrated by one or both).
+- Stars are integers 1–5 or null, per person per movie: **hype** (`*_hype`, before watching, drives picking; `hype_total` = sum with nulls as 0) and **verdict** (`*_verdict`, after watching) plus an optional `*_note`.
+- **Pickable** = `status == watchlist` and not skipped tonight. Every pick method (top rated and both wheels) must use only pickable movies: `is_pickable()` / `Movie.pickable_filter()` in `app/models.py`, and reject a `PickCreate` for a non-pickable movie.
+- **Skip tonight**: either person can say "not tonight" (`MovieUpdate.skipped_tonight`). It's stored as `skipped_on` = the movie-night date (local time, rolls over at 06:00) and expires on its own the next night. Apply PATCHes with `Movie.apply_update()`.
 
 ## Status
 
 Update this section at the end of each step so work can resume after `/clear`.
 
 - [x] Scaffold: monorepo, `/api/health`, frontend page that shows the health result.
-- [ ] Next: no features built yet (no DB models, no TMDB calls, no ratings, no picker).
+- [x] DB models in `app/models.py`: `Movie`, `Pick` (+ `*Create` / `*Read` / `*Update` schemas); tables created on startup; SQLite FKs enabled in `db.py`. Pickable rule + "skip tonight" in place. No migrations: after a schema change, delete `backend/movie_night.db` (fine while it's empty).
+- [x] TMDB service in `app/tmdb.py`: async `TMDBClient` (created in `lifespan`, injected via `get_tmdb`), `search_movies()` (5-min in-memory cache), `get_movie_details()` returning `TMDBMovieDetails` whose fields match `MovieBase`. Failures raise `TMDBError` → JSON `{"detail"}` via handler in `main.py`. `GET /api/search?q=` returns `SearchResult` list with `already_saved` (computed per request, never cached). Only TMDB page 1 (top 20) is returned; paging deliberately deferred.
+- [ ] Next: movie CRUD (save by `tmdb_id` via `get_movie_details`), then frontend (search UI, list, picker). No picker yet.
 
 ## Workflow
 
@@ -33,12 +37,15 @@ backend/
   .env.example        # TMDB_TOKEN=... (copy to .env, never commit .env)
   pyproject.toml      # uv project (not a package; run from backend/)
   app/
-    main.py           # FastAPI app, lifespan (creates tables), mounts api_router at /api
+    main.py           # FastAPI app, lifespan (creates tables, TMDB client), TMDBError handler, mounts api_router at /api
     config.py         # Settings (pydantic-settings), get_settings()
-    db.py             # SQLite engine, create_db_and_tables(), get_session dependency
+    db.py             # SQLite engine (FKs on), create_db_and_tables(), get_session dependency
+    models.py         # PEOPLE, enums, Movie/Pick tables + Create/Read/Update schemas
+    tmdb.py           # TMDBClient (httpx async), TMDBError, search cache, get_tmdb dependency
     api/
       __init__.py     # api_router — include each feature router here
       health.py       # GET /api/health
+      search.py       # GET /api/search?q=
 frontend/
   vite.config.ts      # React + Tailwind plugins, /api proxy -> http://localhost:8000
   src/
