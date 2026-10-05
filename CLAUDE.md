@@ -21,7 +21,8 @@ Update this section at the end of each step so work can resume after `/clear`.
 - [x] Tests in `backend/tests/` (pytest + respx, in-memory SQLite via monkeypatched `app.db.engine`, settings never read `.env`): search + all movie endpoints.
 - [x] Picking + history in `app/api/picks.py` / `app/api/history.py`: `POST /api/picks` (`PickRequest`: method, `max_runtime` excludes unknown runtimes, `genre`; 400 if no pickable match) → `PickResult` with winner + ordered candidates (weight, probability). Choice in pure `choose()` using the `get_rng` dependency (seeded in tests). top_rated: weight = hype_total, random among ties; wheel_random: uniform; wheel_weighted: weight = hype_total or 1. `POST /api/picks/{id}/confirm` (idempotent). `MovieRead.confirmed_pick_method` = latest confirmed pick (for "rate it after watching" when still on watchlist). `GET /api/history` → watched movies newest first with `average_verdict` + stats (verdicts only for "Fuf vs Cookie"; ties → most recent). Backend complete; see `localhost:8000/docs`.
 - [x] Frontend shell (step 6): theme tokens in `src/index.css` `@theme` (near-black `ink-*` surfaces with a faint silver glow, `fg`/`muted` text, one accent `accent` (blue), `fuf` lavender / `cookie` rose + `*-soft` tints; fonts Outfit `font-display` for headings, Inter body, loaded in `index.html`). Fuf/Cookie name, emoji (🐻 / 🍪) and color classes only via `src/people.ts` (`PEOPLE`, `personInfo()`), rendered by `PersonAvatar` / `PersonTag`. React Router (`src/router.tsx`, layout `AppLayout` = `TopNav` on md+ / `BottomTabBar` on mobile, `/` → `/watchlist`). TanStack Query client in `main.tsx` (failed mutations → toast; query errors shown inline). Typed API in `src/api/` (`types.ts` mirrors backend schemas, `client.ts` `apiFetch`/`ApiError`/`withQuery`, one file per resource, `images.ts` TMDB image URLs from paths, `queryKeys.ts`). Toasts: own store `src/lib/toast.ts` (`toast.success/error/info`) + `Toaster`. Skeletons: `Skeleton`, `PosterGridSkeleton`. Pages in `src/pages/` are placeholders.
-- [ ] Next: step 7, Search and Watchlist pages.
+- [x] Search + Watchlist (step 7): `motion` (Framer Motion, import from `motion/react`) for hover/layout/drawer animations. Query/mutation hooks in `src/api/movieHooks.ts` (`useMovies`, `useMovie`, optimistic `useUpdateMovie` patching every cached list + detail with rollback, `useSaveMovie` flips `already_saved` in search caches, `useDeleteMovie`, `useMarkWatched`) and `src/api/searchHooks.ts` (`useSearch`). Components: `StarRating` (tap again clears; mouse hover on the current star previews the clear with a ×; radiogroup + arrow keys, sizes xs/sm/md), `StarDisplay` (read-only), `PosterImage` (fallback), `RatingBadge`, `SearchBar`, `SearchResultCard` + `QuickRatePopover` (overlays the poster), `WatchlistCard`, `WatchlistFilters` + `FilterChip`, generic `Drawer` (bottom sheet on phones, right panel md+) + `MovieDetails` (hype stars, "Not tonight" switch, Mark watched, Remove with second tap). Grid columns shared via `components/posterGrid.ts`. Search keeps `?q=`; Watchlist keeps `genre`/`unrated`/`sort`/`movie` in the URL (back closes the drawer); filtering/sorting is server-side. "Mark watched" currently posts with no verdicts (step 9 replaces it with the modal). Helpers in `src/lib/`: `useDebouncedValue`, `useMediaQuery`, `format.ts`.
+- [ ] Next: step 8, Pick page.
 
 ## Roadmap
 
@@ -29,7 +30,7 @@ Full planned prompts, plus open points to check before each step: `docs/roadmap.
 
 5. ~~Backend: `POST /api/picks` (top_rated / wheel_random / wheel_weighted, server-side choice, returns candidates with weights), confirm a pick, `GET /api/history` with stats.~~ Done.
 6. ~~Frontend shell: cozy dark cinema theme, per-person color and avatar, router (Search / Watchlist / Pick / History), TanStack Query, toasts, skeletons.~~ Done.
-7. Search and Watchlist pages: StarRating, quick-rate popover, filters/sort, detail drawer, optimistic updates.
+7. ~~Search and Watchlist pages: StarRating, quick-rate popover, filters/sort, detail drawer, optimistic updates.~~ Done.
 8. Pick page: method cards, top-rated podium, SVG wheel landing on the backend's winner, confetti, confirm.
 9. Mark-watched modal and History page with stats.
 10. Polish/QA pass (mobile, a11y, states, tsc/lint, tests).
@@ -79,7 +80,7 @@ frontend/
     index.css         # Tailwind import + @theme design tokens + base styles
     people.ts         # Fuf/Cookie name, emoji, color classes
     api/              # types.ts (backend schemas), client.ts (apiFetch), queryKeys.ts, images.ts, one file per resource
-    lib/              # non-UI helpers (toast.ts store)
+    lib/              # non-UI helpers (toast.ts store, useDebouncedValue, useMediaQuery, format)
     components/       # small focused components (one per file)
     pages/            # one component per route
 ```

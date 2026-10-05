@@ -2,6 +2,7 @@ import type { Person } from '../api/types'
 import { personInfo } from '../people'
 
 const SIZES = {
+  xs: 'size-5 text-xs',
   sm: 'size-6 text-sm',
   md: 'size-9 text-lg',
   lg: 'size-12 text-2xl',

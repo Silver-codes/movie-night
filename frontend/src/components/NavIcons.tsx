@@ -1,6 +1,6 @@
 import type { SVGProps } from 'react'
 
-// Small line icons for the nav (24×24, stroke = currentColor).
+// Small line icons for the nav and buttons (24×24, stroke = currentColor).
 
 type IconProps = SVGProps<SVGSVGElement>
 
@@ -64,6 +64,22 @@ export function FilmIcon(props: IconProps) {
     <Icon {...props}>
       <rect x="3.5" y="3.5" width="17" height="17" rx="2.5" />
       <path d="M8 3.5v17M16 3.5v17M3.5 8H8M3.5 12h17M3.5 16H8M16 8h4.5M16 16h4.5" />
+    </Icon>
+  )
+}
+
+export function CheckIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="m5 12.5 4.5 4.5L19 7.5" />
+    </Icon>
+  )
+}
+
+export function PlusIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M12 5v14M5 12h14" />
     </Icon>
   )
 }
