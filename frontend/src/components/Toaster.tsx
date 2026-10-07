@@ -28,7 +28,7 @@ export function Toaster() {
           <button
             type="button"
             onClick={() => dismissToast(t.id)}
-            className="-m-1 rounded-md p-1 text-muted transition hover:text-fg"
+            className="-m-2 rounded-md p-2 text-muted transition hover:text-fg"
             aria-label="Dismiss"
           >
             <CloseIcon className="size-4" />

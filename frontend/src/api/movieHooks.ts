@@ -8,19 +8,36 @@ const UPDATE_MOVIE_KEY = ['movies', 'update'] as const
 export function useMovies(filters: MovieFilters = {}) {
   return useQuery({
     queryKey: queryKeys.movies.list(filters),
-    queryFn: () => fetchMovies(filters),
+    queryFn: ({ signal }) => fetchMovies(filters, signal),
     // Keep showing the previous grid while a new filter combination loads.
     placeholderData: keepPreviousData,
   })
 }
 
-/** One movie; `placeholder` (e.g. from a list) shows it instantly while the detail loads. */
+/** When the freshest cached list containing movie `id` was fetched (0 if none). */
+function listUpdatedAt(queryClient: QueryClient, id: number): number {
+  let updatedAt = 0
+  for (const query of queryClient.getQueryCache().findAll({ queryKey: ['movies', 'list'] })) {
+    const list = query.state.data as Movie[] | undefined
+    if (list?.some((movie) => movie.id === id)) {
+      updatedAt = Math.max(updatedAt, query.state.dataUpdatedAt)
+    }
+  }
+  return updatedAt
+}
+
+/**
+ * One movie. `placeholder` (the same movie from a list) seeds the cache with the list's age,
+ * so opening the drawer shows it instantly and only refetches once the list data is stale.
+ */
 export function useMovie(id: number | null, placeholder?: Movie) {
+  const queryClient = useQueryClient()
   return useQuery({
     queryKey: queryKeys.movies.detail(id ?? 0),
-    queryFn: () => fetchMovie(id ?? 0),
+    queryFn: ({ signal }) => fetchMovie(id ?? 0, signal),
     enabled: id !== null,
-    placeholderData: placeholder,
+    initialData: placeholder?.id === id ? placeholder : undefined,
+    initialDataUpdatedAt: () => (id === null ? 0 : listUpdatedAt(queryClient, id)),
   })
 }
 
@@ -45,6 +62,22 @@ function removeMovieFromLists(queryClient: QueryClient, id: number): void {
   )
 }
 
+// Hype and "not tonight" only matter for the watchlist; these fields feed History.
+const HISTORY_FIELDS = [
+  'status',
+  'watched_on',
+  'fuf_verdict',
+  'cookie_verdict',
+  'fuf_note',
+  'cookie_note',
+] as const satisfies readonly (keyof MovieUpdate)[]
+
+function touchesHistory(update: MovieUpdate): boolean {
+  return HISTORY_FIELDS.some((field) => field in update)
+}
+
+let historyDirty = false
+
 /** PATCH a movie with an optimistic update of every cached list and detail; rolls back on error. */
 export function useUpdateMovie() {
   const queryClient = useQueryClient()
@@ -65,14 +98,20 @@ export function useUpdateMovie() {
     onSuccess: (movie) => {
       patchMovieInCaches(queryClient, movie.id, () => movie)
     },
-    onSettled: () => {
+    onSettled: (_movie, error, { update }) => {
+      // Remember whether anything in flight touched history, so the last mutation refreshes it.
+      if (error || touchesHistory(update)) {
+        historyDirty = true
+      }
       // While more star taps are in flight, a refetch would overwrite their optimistic state;
-      // the last mutation to finish refreshes lists (filter membership, sort order) and
-      // history (verdicts, notes and dates feed the timeline and stats).
+      // the last mutation to finish refreshes lists (filter membership, sort order). Details
+      // already hold the server's movie from onSuccess (or the rollback), so they're skipped.
       if (queryClient.isMutating({ mutationKey: UPDATE_MOVIE_KEY }) === 1) {
+        const refreshHistory = historyDirty
+        historyDirty = false
         return Promise.all([
-          queryClient.invalidateQueries({ queryKey: queryKeys.movies.all }),
-          queryClient.invalidateQueries({ queryKey: queryKeys.history }),
+          queryClient.invalidateQueries({ queryKey: ['movies', 'list'] }),
+          refreshHistory && queryClient.invalidateQueries({ queryKey: queryKeys.history }),
         ])
       }
     },

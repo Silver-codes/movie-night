@@ -22,15 +22,25 @@ export function ScrollRow({ children }: { children: ReactNode }) {
     el.addEventListener('scroll', update, { passive: true })
     // Size changes of the row or its chips (rotation, genres loading in).
     const observer = new ResizeObserver(update)
-    observer.observe(el)
-    for (const child of el.children) {
-      observer.observe(child)
+    const observeChips = () => {
+      observer.observe(el)
+      for (const child of el.children) {
+        observer.observe(child)
+      }
     }
+    observeChips()
+    // Chips added or removed later (genres loading in) get observed too.
+    const chips = new MutationObserver(() => {
+      observeChips()
+      update()
+    })
+    chips.observe(el, { childList: true })
     return () => {
       el.removeEventListener('scroll', update)
       observer.disconnect()
+      chips.disconnect()
     }
-  }, [children])
+  }, [])
 
   const fade = 'pointer-events-none absolute inset-y-0 w-10 transition-opacity duration-200 sm:hidden'
   return (

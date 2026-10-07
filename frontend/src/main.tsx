@@ -2,6 +2,9 @@ import { MutationCache, QueryClient, QueryClientProvider } from '@tanstack/react
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { RouterProvider } from 'react-router/dom'
+// Fonts are bundled (served from the LAN), not fetched from Google before the first paint.
+import '@fontsource-variable/inter/wght.css'
+import '@fontsource-variable/outfit/wght.css'
 import { Toaster } from './components/Toaster'
 import './index.css'
 import { toast } from './lib/toast'

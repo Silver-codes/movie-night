@@ -72,7 +72,7 @@ export function Drawer({ open, onClose, label, children }: Props) {
               type="button"
               onClick={onClose}
               aria-label="Close"
-              className="absolute top-3 right-3 z-10 rounded-full bg-ink-950/70 p-2 text-fg ring-1 ring-white/10 backdrop-blur transition hover:bg-ink-700"
+              className="absolute top-3 right-3 z-10 rounded-full bg-ink-950/70 p-2.5 text-fg ring-1 ring-white/10 backdrop-blur transition hover:bg-ink-700"
             >
               <CloseIcon className="size-5" />
             </button>

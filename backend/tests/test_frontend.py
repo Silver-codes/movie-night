@@ -42,6 +42,7 @@ def test_assets_and_root_files_are_served(spa_client: TestClient) -> None:
     script = spa_client.get("/assets/app.js")
     assert script.status_code == 200
     assert script.headers["content-type"].startswith("text/javascript")
+    assert script.headers["cache-control"] == "public, max-age=31536000, immutable"
     assert spa_client.get("/favicon.svg").text == "<svg/>"
 
 

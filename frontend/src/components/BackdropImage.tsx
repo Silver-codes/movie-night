@@ -16,7 +16,12 @@ export function BackdropImage({ movie }: { movie: Pick<Movie, 'backdrop_path' | 
   let content
   if (backdrop && !failed.has(backdrop)) {
     content = (
-      <img src={backdrop} alt="" decoding="async" onError={() => fail(backdrop)} className="size-full object-cover" />
+      <img
+        src={backdrop}
+        alt=""
+        decoding="async"
+        fetchPriority="high"
+        onError={() => fail(backdrop)} className="size-full object-cover" />
     )
   } else if (poster && !failed.has(poster)) {
     content = (

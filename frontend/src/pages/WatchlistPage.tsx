@@ -18,7 +18,10 @@ import { useMovieParam } from '../lib/useMovieParam'
 import { PEOPLE } from '../people'
 
 const DEFAULT_SORT: WatchlistSort = 'hype_total'
-const ALL_WATCHLIST: MovieFilters = { status: 'watchlist' }
+// Same key as the unfiltered, default-sorted grid below, so that case is one request, not two.
+const ALL_WATCHLIST: MovieFilters = { status: 'watchlist', sort: DEFAULT_SORT }
+// Posters in roughly the first row load eagerly; the rest lazily.
+const EAGER_POSTERS = 6
 
 function parsePerson(value: string | null): Person | null {
   return PEOPLE.find((p) => p.id === value)?.id ?? null
@@ -121,8 +124,8 @@ export function WatchlistPage() {
         ) : (
           <ul className={`${POSTER_GRID_CLASS} transition-opacity ${filtered.isPlaceholderData ? 'opacity-60' : ''}`}>
             <AnimatePresence mode="popLayout" initial={false}>
-              {filtered.data.map((movie) => (
-                <WatchlistCard key={movie.id} movie={movie} onOpen={(m) => openMovie(m.id)} />
+              {filtered.data.map((movie, index) => (
+                <WatchlistCard key={movie.id} movie={movie} onOpen={openMovie} priority={index < EAGER_POSTERS} />
               ))}
             </AnimatePresence>
           </ul>

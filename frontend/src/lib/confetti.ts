@@ -5,6 +5,17 @@ function themeColors(): string[] {
   return COLOR_TOKENS.map((token) => style.getPropertyValue(token).trim()).filter(Boolean)
 }
 
+function loadConfetti() {
+  return import('canvas-confetti')
+}
+
+/** Start downloading the confetti chunk (e.g. when a spin starts), so the burst isn't late. */
+export function preloadConfetti(): void {
+  if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    void loadConfetti()
+  }
+}
+
 /** A celebratory burst from both bottom corners in the theme's colors (skipped with reduced motion). */
 export function fireConfetti(): void {
   if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
@@ -12,8 +23,8 @@ export function fireConfetti(): void {
   }
   const colors = themeColors()
   const shared = { particleCount: 90, spread: 70, startVelocity: 55, ticks: 220, colors, zIndex: 60 }
-  // Loaded on the first celebration only; it isn't needed anywhere else.
-  void import('canvas-confetti').then(({ default: confetti }) => {
+  // Loaded on first use (or by preloadConfetti); it isn't needed anywhere else.
+  void loadConfetti().then(({ default: confetti }) => {
     void confetti({ ...shared, angle: 60, origin: { x: 0, y: 0.9 } })
     void confetti({ ...shared, angle: 120, origin: { x: 1, y: 0.9 } })
   })

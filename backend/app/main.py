@@ -2,6 +2,7 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse
 
 from sqlmodel import Session
@@ -25,6 +26,8 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
 
 app = FastAPI(title="Movie Night API", lifespan=lifespan)
+# Compresses JSON and the built JS/CSS (several times smaller on the phone).
+app.add_middleware(GZipMiddleware, minimum_size=1000)
 app.include_router(api_router, prefix="/api")
 # Production mode: serve the built frontend (registered last, so /api and /docs win).
 if (FRONTEND_DIST / "index.html").is_file():

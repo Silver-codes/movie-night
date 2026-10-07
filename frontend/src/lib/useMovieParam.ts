@@ -11,18 +11,15 @@ export function useMovieParam() {
   const navigate = useNavigate()
   const openId = Number(params.get('movie')) || null
 
+  // Built on `navigate` (stable) instead of `setParams` (new on every URL change), so memoized
+  // cards that get `openMovie` don't all re-render when the drawer opens or closes.
   const openMovie = useCallback(
     (id: number) => {
-      setParams(
-        (prev) => {
-          const next = new URLSearchParams(prev)
-          next.set('movie', String(id))
-          return next
-        },
-        { state: { drawer: true } },
-      )
+      const next = new URLSearchParams(window.location.search)
+      next.set('movie', String(id))
+      void navigate({ search: `?${next.toString()}` }, { state: { drawer: true } })
     },
-    [setParams],
+    [navigate],
   )
 
   const fromDrawerPush = (location.state as { drawer?: boolean } | null)?.drawer === true

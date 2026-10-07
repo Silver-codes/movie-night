@@ -4,6 +4,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy import ColumnElement, and_, func, or_
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import selectinload
 from sqlmodel import Session, col, select
 
 from app.db import get_session
@@ -34,7 +35,8 @@ class MovieSort(str, Enum):
 
 
 def _get_movie_or_404(session: Session, movie_id: int) -> Movie:
-    movie = session.get(Movie, movie_id)
+    # Picks loaded up front: MovieRead reads them (confirmed_pick_method, awaiting_verdict).
+    movie = session.get(Movie, movie_id, options=[selectinload(Movie.picks)])  # type: ignore[arg-type]
     if movie is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Movie not found")
     return movie
@@ -101,7 +103,7 @@ def list_movies(
     unrated_by: Person | None = None,
     sort: MovieSort = MovieSort.added,
 ) -> list[MovieRead]:
-    query = select(Movie)
+    query = select(Movie).options(selectinload(Movie.picks))  # type: ignore[arg-type]
     if status is not None:
         query = query.where(Movie.status == status)
     if genre:

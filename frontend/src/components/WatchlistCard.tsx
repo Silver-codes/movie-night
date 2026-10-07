@@ -1,4 +1,5 @@
 import { motion } from 'motion/react'
+import { memo } from 'react'
 import { posterUrl } from '../api/images'
 import type { Movie } from '../api/types'
 import { PEOPLE } from '../people'
@@ -7,7 +8,10 @@ import { StarDisplay } from './StarDisplay'
 
 type Props = {
   movie: Movie
-  onOpen: (movie: Movie) => void
+  /** Should be stable (e.g. `openMovie`), so unchanged cards skip re-rendering. */
+  onOpen: (id: number) => void
+  /** In the first row: load the poster right away. */
+  priority?: boolean
 }
 
 /**
@@ -15,7 +19,7 @@ type Props = {
  * The title is the button (so it's named just by the title); its `after:` layer stretches
  * over the whole card, so tapping anywhere opens it.
  */
-export function WatchlistCard({ movie, onOpen }: Props) {
+export const WatchlistCard = memo(function WatchlistCard({ movie, onOpen, priority = false }: Props) {
   return (
     <motion.li
       layout
@@ -36,11 +40,12 @@ export function WatchlistCard({ movie, onOpen }: Props) {
             src={posterUrl(movie.poster_path)}
             title={movie.title}
             decorative
+            priority={priority}
             className={`shadow-lg shadow-black/40 transition group-hover:shadow-xl group-hover:shadow-black/60 ${movie.skipped_tonight ? 'opacity-50 grayscale' : ''}`}
           />
           <span
             title="Hype total"
-            className="absolute top-2 right-2 inline-flex min-w-8 items-center justify-center gap-0.5 rounded-full bg-ink-950/85 px-2 py-0.5 text-sm font-bold text-fg ring-1 ring-white/10 backdrop-blur"
+            className="absolute top-2 right-2 inline-flex min-w-8 items-center justify-center gap-0.5 rounded-full bg-ink-950/85 px-2 py-0.5 text-sm font-bold text-fg ring-1 ring-white/10"
           >
             <span className="sr-only">Hype total </span>
             {movie.hype_total}
@@ -49,7 +54,7 @@ export function WatchlistCard({ movie, onOpen }: Props) {
             </span>
           </span>
           {movie.skipped_tonight && (
-            <span className="absolute inset-x-2 bottom-2 rounded-lg bg-ink-950/85 py-1 text-center text-xs font-semibold text-muted backdrop-blur">
+            <span className="absolute inset-x-2 bottom-2 rounded-lg bg-ink-950/85 py-1 text-center text-xs font-semibold text-muted">
               Not tonight
             </span>
           )}
@@ -58,7 +63,7 @@ export function WatchlistCard({ movie, onOpen }: Props) {
           <h3 className="line-clamp-2 font-sans text-sm leading-snug font-semibold">
             <button
               type="button"
-              onClick={() => onOpen(movie)}
+              onClick={() => onOpen(movie.id)}
               className="text-left outline-none after:absolute after:inset-0 after:rounded-xl"
             >
               {movie.title}
@@ -76,4 +81,4 @@ export function WatchlistCard({ movie, onOpen }: Props) {
       </motion.article>
     </motion.li>
   )
-}
+})

@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from 'motion/react'
-import { useId, useState } from 'react'
+import { memo, useId, useState } from 'react'
 import { posterUrl } from '../api/images'
 import type { HistoryEntry } from '../api/types'
 import { formatDate, formatStars } from '../lib/format'
@@ -16,7 +16,7 @@ type Props = {
 }
 
 /** One watched movie on the History timeline; the poster and title open the drawer. */
-export function HistoryEntryCard({ entry, onOpen }: Props) {
+export const HistoryEntryCard = memo(function HistoryEntryCard({ entry, onOpen }: Props) {
   const [showNotes, setShowNotes] = useState(false)
   const notesId = useId()
   const notes = PEOPLE.flatMap((person) => {
@@ -118,4 +118,4 @@ export function HistoryEntryCard({ entry, onOpen }: Props) {
       </div>
     </article>
   )
-}
+})

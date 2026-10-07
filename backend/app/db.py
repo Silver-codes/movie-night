@@ -22,6 +22,17 @@ def enable_sqlite_foreign_keys(dbapi_connection: SQLiteConnection, _: Any) -> No
     cursor.close()
 
 
+@event.listens_for(engine, "connect")
+def tune_sqlite(dbapi_connection: SQLiteConnection, _: Any) -> None:
+    # WAL (persisted in the file) + NORMAL sync: far cheaper commits than the default
+    # rollback journal with full fsyncs, and readers no longer block the writer.
+    cursor = dbapi_connection.cursor()
+    cursor.execute("PRAGMA journal_mode=WAL")
+    cursor.execute("PRAGMA synchronous=NORMAL")
+    cursor.execute("PRAGMA busy_timeout=5000")
+    cursor.close()
+
+
 def create_db_and_tables() -> None:
     SQLModel.metadata.create_all(engine)
 

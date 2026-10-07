@@ -9,10 +9,19 @@ type Props = {
   decorative?: boolean
   /** Small thumbnails (about w-12 and below): the fallback shows only a small icon. */
   compact?: boolean
+  /** Above the fold: load right away with high priority instead of lazily. */
+  priority?: boolean
 }
 
 /** A 2:3 poster that falls back to a film icon when there's no image (or it fails to load). It fills its container; for a fixed size pass a width class (e.g. `w-24`). */
-export function PosterImage({ src, title, className = '', decorative = false, compact = false }: Props) {
+export function PosterImage({
+  src,
+  title,
+  className = '',
+  decorative = false,
+  compact = false,
+  priority = false,
+}: Props) {
   // Remember which URL failed, so a new `src` gets its own try.
   const [failedSrc, setFailedSrc] = useState<string | null>(null)
   return (
@@ -21,7 +30,8 @@ export function PosterImage({ src, title, className = '', decorative = false, co
         <img
           src={src}
           alt={decorative ? '' : `Poster of ${title}`}
-          loading="lazy"
+          loading={priority ? 'eager' : 'lazy'}
+          fetchPriority={priority ? 'high' : undefined}
           decoding="async"
           onError={() => setFailedSrc(src)}
           className="size-full object-cover"

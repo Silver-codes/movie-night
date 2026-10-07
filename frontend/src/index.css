@@ -2,8 +2,9 @@
 
 /* Design tokens: dark cinema. Use them as Tailwind utilities, e.g. bg-ink-900, text-accent, text-fuf. */
 @theme {
-  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
-  --font-display: "Outfit", "Inter", ui-sans-serif, system-ui, sans-serif;
+  /* Self-hosted variable fonts (@fontsource-variable, imported in main.tsx). */
+  --font-sans: "Inter Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Outfit Variable", "Inter Variable", ui-sans-serif, system-ui, sans-serif;
 
   /* Near-black, neutral-cool surfaces, darkest first. */
   --color-ink-950: #0a0b0d;
@@ -45,13 +46,23 @@
 @layer base {
   :root {
     color-scheme: dark;
+    /* No pull-to-refresh (it could reload mid-spin) or scroll chaining past the page. */
+    overscroll-behavior-y: none;
   }
 
   body {
     @apply min-h-dvh bg-ink-950 font-sans text-fg antialiased;
-    /* A faint silver glow from the top, like light from the screen. */
+  }
+
+  /* A faint silver glow from the top, like light from the screen. A fixed layer of its own,
+     not `background-attachment: fixed`, which repaints the whole page on every scroll. */
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
     background-image: radial-gradient(ellipse 80% 50% at 50% -10%, #c9d1dd17, transparent 70%);
-    background-attachment: fixed;
   }
 
   h1,

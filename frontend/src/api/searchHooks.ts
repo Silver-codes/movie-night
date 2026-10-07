@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query'
+import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { queryKeys } from './queryKeys'
 import { searchMovies } from './search'
 
@@ -10,5 +10,7 @@ export function useSearch(q: string) {
     enabled: q !== '',
     // The backend caches TMDB for 5 minutes too; `already_saved` is patched locally on save.
     staleTime: 5 * 60_000,
+    // While typing, keep the previous results on screen (dimmed) instead of a skeleton.
+    placeholderData: keepPreviousData,
   })
 }

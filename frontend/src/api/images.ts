@@ -8,6 +8,6 @@ export function posterUrl(path: string | null, size: PosterSize = 'w342'): strin
   return path ? `${TMDB_IMAGE_URL}/${size}${path}` : null
 }
 
-export function backdropUrl(path: string | null, size: BackdropSize = 'w1280'): string | null {
+export function backdropUrl(path: string | null, size: BackdropSize = 'w780'): string | null {
   return path ? `${TMDB_IMAGE_URL}/${size}${path}` : null
 }

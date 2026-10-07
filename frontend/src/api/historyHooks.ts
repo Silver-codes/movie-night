@@ -6,6 +6,6 @@ import { queryKeys } from './queryKeys'
 export function useHistory() {
   return useQuery({
     queryKey: queryKeys.history,
-    queryFn: fetchHistory,
+    queryFn: ({ signal }) => fetchHistory(signal),
   })
 }

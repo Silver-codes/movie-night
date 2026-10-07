@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.orm import selectinload
 from sqlmodel import Session, col, delete, select
 
 from app.db import get_session
@@ -121,7 +122,11 @@ def create_pick(
     pending: PendingDep,
     rng: Annotated[random.Random, Depends(get_rng)],
 ) -> PickResult:
-    query = select(Movie).where(Movie.pickable_filter())
+    query = (
+        select(Movie)
+        .where(Movie.pickable_filter())
+        .options(selectinload(Movie.picks))  # type: ignore[arg-type]
+    )
     if body.max_runtime is not None:
         query = query.where(col(Movie.runtime).is_not(None), col(Movie.runtime) <= body.max_runtime)
     if body.genre:

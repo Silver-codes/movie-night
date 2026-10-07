@@ -23,7 +23,7 @@ import { Skeleton } from '../components/Skeleton'
 import { SoundToggle } from '../components/SoundToggle'
 import { SpinWheel } from '../components/SpinWheel'
 import { TopRatedPodium } from '../components/TopRatedPodium'
-import { fireConfetti } from '../lib/confetti'
+import { fireConfetti, preloadConfetti } from '../lib/confetti'
 import { PICK_METHODS, pickMethodInfo, RUNTIME_LIMITS, type RuntimeLimit } from '../lib/pickMethods'
 import { loadSoundEnabled, saveSoundEnabled, unlockAudio } from '../lib/tick'
 import { toast } from '../lib/toast'
@@ -114,6 +114,7 @@ export function PickPage() {
   }
 
   function runPick(body: PickRequest = request()) {
+    preloadConfetti()
     if (sound && pickMethodInfo(body.method).isWheel) {
       unlockAudio()
     }

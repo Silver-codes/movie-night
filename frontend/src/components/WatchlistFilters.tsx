@@ -62,7 +62,7 @@ export function WatchlistFilters({
           <select
             value={sort}
             onChange={(e) => onSortChange(e.target.value as WatchlistSort)}
-            className="rounded-lg border border-ink-700 bg-ink-900 px-3 py-1.5 text-sm text-fg focus:border-accent"
+            className="rounded-lg border border-ink-700 bg-ink-900 px-3 py-2 text-sm text-fg focus:border-accent"
           >
             {WATCHLIST_SORTS.map((s) => (
               <option key={s.value} value={s.value}>

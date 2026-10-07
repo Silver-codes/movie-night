@@ -1,12 +1,12 @@
 import { apiFetch, withQuery } from './client'
 import type { Movie, MovieFilters, MovieSave, MovieUpdate, MovieWatched } from './types'
 
-export function fetchMovies(filters: MovieFilters = {}): Promise<Movie[]> {
-  return apiFetch<Movie[]>(withQuery('/api/movies', filters))
+export function fetchMovies(filters: MovieFilters = {}, signal?: AbortSignal): Promise<Movie[]> {
+  return apiFetch<Movie[]>(withQuery('/api/movies', filters), { signal })
 }
 
-export function fetchMovie(id: number): Promise<Movie> {
-  return apiFetch<Movie>(`/api/movies/${id}`)
+export function fetchMovie(id: number, signal?: AbortSignal): Promise<Movie> {
+  return apiFetch<Movie>(`/api/movies/${id}`, { signal })
 }
 
 /** Saves a TMDB movie to the watchlist (409 if it's already saved). */

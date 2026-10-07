@@ -15,7 +15,7 @@ export function FilterChip({ active, onClick, children, activeClass = 'bg-accent
       type="button"
       aria-pressed={active}
       onClick={onClick}
-      className={`inline-flex shrink-0 items-center gap-1.5 rounded-full px-3.5 py-1.5 text-sm font-medium whitespace-nowrap ring-1 transition ${
+      className={`inline-flex shrink-0 items-center gap-1.5 rounded-full px-3.5 py-2 text-sm font-medium whitespace-nowrap ring-1 transition ${
         active ? activeClass : 'bg-ink-900 text-muted ring-ink-700 hover:text-fg hover:ring-ink-600'
       }`}
     >

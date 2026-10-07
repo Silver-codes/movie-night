@@ -6,8 +6,10 @@
 __pycache__/
 *.pyc
 
-# SQLite database
+# SQLite database (+ WAL side files)
 *.db
+*.db-wal
+*.db-shm
 
 # Node
 node_modules/
