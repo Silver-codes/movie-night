@@ -20,3 +20,6 @@ Thumbs.db
 
 # Database backups (npm run backup)
 backups/
+
+#VS code folder
+.vscode/
