@@ -81,3 +81,13 @@ Backend tests never call the real TMDB API.
 - **Port 8000 already in use**: another backend is still running (an old `npm run dev` or `npm start`). Close that terminal, or find it with `netstat -ano | findstr :8000`.
 - **Search fails / `tmdb_configured: false`**: `backend/.env` is missing or has no `TMDB_TOKEN`. Restart the backend after editing it.
 - **Phone can't connect**: check both devices are on the same Wi-Fi, the IP is current (it can change after a router restart), and the firewall rule allows Python on private networks.
+
+## Credits
+
+Movie data and images come from [TMDB](https://www.themoviedb.org/).
+
+This product uses the TMDB API but is not endorsed or certified by TMDB.
+
+## License
+
+[MIT](LICENSE): free to use, copy, modify and share, as long as the license notice is kept.
