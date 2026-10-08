@@ -151,6 +151,20 @@ export type HistoryRead = {
   stats: HistoryStats
 }
 
+/** Palette key of a person's color (`PersonColor`); hex values in `lib/personProfiles.ts`. */
+export type PersonColor = 'lavender' | 'rose' | 'mint' | 'amber' | 'coral' | 'sky'
+
+/** `PersonProfileRead`: what people see of a person slot. */
+export type PersonProfile = {
+  id: Person
+  name: string
+  emoji: string
+  color: PersonColor
+}
+
+/** `PersonProfileUpdate`: only sent fields change. */
+export type PersonProfileUpdate = Partial<Omit<PersonProfile, 'id'>>
+
 export type HealthResponse = {
   status: string
   tmdb_configured: boolean

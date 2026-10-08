@@ -1,14 +1,14 @@
-import type { Person } from './api/types'
+import { usePeopleProfiles } from './api/peopleHooks'
+import type { Person, PersonColor } from './api/types'
 
 /**
- * Fuf and Cookie: signature color + emoji, used wherever their stars appear.
+ * The two person slots. `fuf` / `cookie` are internal IDs (API fields, CSS tokens); what people see
+ * (name, emoji, color) is their editable profile, from `usePeople()` / `usePersonInfo()`.
  * Class names are written out in full so Tailwind picks them up; the colors are
- * `--color-fuf` / `--color-cookie` in index.css.
+ * `--color-fuf` / `--color-cookie` in index.css, pointed at the chosen palette color at runtime.
  */
-export type PersonInfo = {
+export type PersonSlot = {
   id: Person
-  name: string
-  emoji: string
   /** Text and star color. */
   textClass: string
   /** Translucent tint for avatar circles and chips. */
@@ -17,11 +17,15 @@ export type PersonInfo = {
   borderClass: string
 }
 
-export const PEOPLE: readonly PersonInfo[] = [
+export type PersonInfo = PersonSlot & {
+  name: string
+  emoji: string
+  color: PersonColor
+}
+
+export const PEOPLE: readonly PersonSlot[] = [
   {
     id: 'fuf',
-    name: 'Fuf',
-    emoji: '🐻',
     textClass: 'text-fuf',
     softBgClass: 'bg-fuf-soft',
     ringClass: 'ring-fuf',
@@ -29,8 +33,6 @@ export const PEOPLE: readonly PersonInfo[] = [
   },
   {
     id: 'cookie',
-    name: 'Cookie',
-    emoji: '🍪',
     textClass: 'text-cookie',
     softBgClass: 'bg-cookie-soft',
     ringClass: 'ring-cookie',
@@ -38,8 +40,20 @@ export const PEOPLE: readonly PersonInfo[] = [
   },
 ]
 
-export function personInfo(id: Person): PersonInfo {
-  const person = PEOPLE.find((p) => p.id === id)
+/** Both people with their current name, emoji and color, in `PEOPLE` order. */
+export function usePeople(): PersonInfo[] {
+  const { data: profiles } = usePeopleProfiles()
+  return PEOPLE.map((slot) => {
+    const profile = profiles.find((p) => p.id === slot.id)
+    if (!profile) {
+      throw new Error(`No profile for ${slot.id}`)
+    }
+    return { ...profile, ...slot }
+  })
+}
+
+export function usePersonInfo(id: Person): PersonInfo {
+  const person = usePeople().find((p) => p.id === id)
   if (!person) {
     throw new Error(`Unknown person: ${id}`)
   }

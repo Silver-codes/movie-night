@@ -1,5 +1,5 @@
 import type { Person } from '../api/types'
-import { personInfo } from '../people'
+import { usePersonInfo } from '../people'
 
 const SIZES = {
   xs: 'size-5 text-xs',
@@ -17,7 +17,7 @@ type Props = {
 
 /** The person's emoji in a circle tinted with their color. */
 export function PersonAvatar({ person, size = 'md', decorative = false }: Props) {
-  const info = personInfo(person)
+  const info = usePersonInfo(person)
   return (
     <span
       {...(decorative ? { 'aria-hidden': true } : { role: 'img', 'aria-label': info.name })}

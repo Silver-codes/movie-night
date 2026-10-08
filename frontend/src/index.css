@@ -25,11 +25,21 @@
   --color-danger: #e5675c;
   --color-success: #7cc48a;
 
-  /* Fuf and Cookie: used wherever their stars appear (see src/people.ts). */
-  --color-fuf: #a99cf2;
-  --color-fuf-soft: #a99cf226;
-  --color-cookie: #f08fb0;
-  --color-cookie-soft: #f08fb026;
+  /* Colors people can choose for themselves (`PersonColor`): readable on ink, apart from the accent. */
+  --color-swatch-lavender: #a99cf2;
+  --color-swatch-rose: #f08fb0;
+  --color-swatch-mint: #7dd3ae;
+  --color-swatch-amber: #f0c25e;
+  --color-swatch-coral: #f59a76;
+  --color-swatch-sky: #7cc7ec;
+
+  /* The two people (slots `fuf` / `cookie`), wherever their stars appear (see src/people.ts).
+     These are the default colors; applyPersonColors() in lib/personProfiles.ts overrides them on
+     <html> with each person's chosen color, and the soft tints follow on their own. */
+  --color-fuf: var(--color-swatch-lavender);
+  --color-fuf-soft: color-mix(in oklab, var(--color-fuf) 15%, transparent);
+  --color-cookie: var(--color-swatch-rose);
+  --color-cookie-soft: color-mix(in oklab, var(--color-cookie) 15%, transparent);
 
   --animate-shimmer: shimmer 1.6s ease-in-out infinite;
 

@@ -1,6 +1,6 @@
 import { useId } from 'react'
 import type { Person, Stars } from '../api/types'
-import { personInfo } from '../people'
+import { usePersonInfo } from '../people'
 import { StarRating } from './StarRating'
 
 const NOTE_MAX_LENGTH = 280
@@ -17,7 +17,7 @@ type Props = {
 
 /** One person's verdict stars and short note. */
 export function VerdictFields({ person, verdict, onVerdictChange, note, onNoteChange, onNoteBlur }: Props) {
-  const info = personInfo(person)
+  const info = usePersonInfo(person)
   const noteId = useId()
   return (
     <div className="flex flex-col gap-3 rounded-2xl bg-ink-950/60 p-4 ring-1 ring-ink-700">

@@ -1,5 +1,5 @@
 import type { MovieSort, Person } from '../api/types'
-import { PEOPLE } from '../people'
+import { usePeople } from '../people'
 import { FilterChip } from './FilterChip'
 import { ScrollRow } from './ScrollRow'
 
@@ -31,6 +31,7 @@ export function WatchlistFilters({
   sort,
   onSortChange,
 }: Props) {
+  const people = usePeople()
   return (
     <div className="mb-6 flex flex-col gap-3">
       {genres.length > 0 && (
@@ -46,7 +47,7 @@ export function WatchlistFilters({
         </ScrollRow>
       )}
       <div className="flex flex-wrap items-center gap-2">
-        {PEOPLE.map((person) => (
+        {people.map((person) => (
           <FilterChip
             key={person.id}
             active={unratedBy === person.id}

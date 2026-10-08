@@ -1,8 +1,8 @@
 from datetime import UTC, date, datetime, timedelta
 from enum import Enum
-from typing import Final, Literal, Self
+from typing import Annotated, Final, Literal, Self
 
-from pydantic import computed_field, model_validator
+from pydantic import StringConstraints, computed_field, model_validator
 from sqlalchemy import JSON, CheckConstraint, Column, ColumnElement, and_, column, exists, func, or_
 from sqlmodel import Field, Relationship, SQLModel, col
 
@@ -239,6 +239,65 @@ class PickResult(SQLModel):
     winner: MovieRead
     # In display order (wheel slices / top-rated ranking); probabilities sum to 1.
     candidates: list[PickCandidate]
+
+
+# --- People ---
+
+
+class PersonColor(str, Enum):
+    """Curated palette keys; the frontend maps them to colors readable on the dark theme."""
+
+    lavender = "lavender"
+    rose = "rose"
+    mint = "mint"
+    amber = "amber"
+    coral = "coral"
+    sky = "sky"
+
+
+ProfileName = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=20)]
+# One emoji can be several code points (skin tones, ZWJ sequences); the frontend checks it's one grapheme.
+ProfileEmoji = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=16)]
+
+
+class PersonProfile(SQLModel, table=True):
+    """Display name, emoji and color of a person slot (`fuf` / `cookie` stay the internal IDs)."""
+
+    __tablename__ = "person_profile"
+
+    id: str = Field(primary_key=True)
+    name: str
+    emoji: str
+    color: PersonColor
+
+
+# Seeded on startup for slots without a row.
+DEFAULT_PROFILES: Final[dict[str, tuple[str, str, PersonColor]]] = {
+    "fuf": ("Fuf", "🐻", PersonColor.lavender),
+    "cookie": ("Cookie", "🍪", PersonColor.rose),
+}
+
+
+class PersonProfileRead(SQLModel):
+    id: Person
+    name: str
+    emoji: str
+    color: PersonColor
+
+
+class PersonProfileUpdate(SQLModel):
+    """PATCH /people/{person} body; only sent fields change, none of them can be null."""
+
+    name: ProfileName | None = None
+    emoji: ProfileEmoji | None = None
+    color: PersonColor | None = None
+
+    @model_validator(mode="after")
+    def _no_nulls(self) -> Self:
+        for field in self.model_fields_set:
+            if getattr(self, field) is None:
+                raise ValueError(f"{field} cannot be null")
+        return self
 
 
 # --- History ---

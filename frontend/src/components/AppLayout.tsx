@@ -1,11 +1,13 @@
 import { Outlet } from 'react-router'
 import { BackendStatus } from './BackendStatus'
 import { BottomTabBar } from './BottomTabBar'
+import { PeopleSync } from './PeopleSync'
 import { TopNav } from './TopNav'
 
 export function AppLayout() {
   return (
     <div className="flex min-h-dvh flex-col">
+      <PeopleSync />
       <TopNav />
       <BackendStatus />
       {/* Bottom padding keeps content clear of the mobile tab bar. */}

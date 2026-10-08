@@ -13,4 +13,5 @@ export const queryKeys = {
   },
   search: (q: string) => ['search', q] as const,
   history: ['history'] as const,
+  people: ['people'] as const,
 }

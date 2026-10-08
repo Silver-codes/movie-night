@@ -3,7 +3,7 @@ import { memo, useId, useState } from 'react'
 import { posterUrl } from '../api/images'
 import type { HistoryEntry } from '../api/types'
 import { formatDate, formatStars } from '../lib/format'
-import { PEOPLE } from '../people'
+import { usePeople } from '../people'
 import { HypeVsReality } from './HypeVsReality'
 import { PersonAvatar } from './PersonAvatar'
 import { PickMethodBadge } from './PickMethodBadge'
@@ -19,7 +19,8 @@ type Props = {
 export const HistoryEntryCard = memo(function HistoryEntryCard({ entry, onOpen }: Props) {
   const [showNotes, setShowNotes] = useState(false)
   const notesId = useId()
-  const notes = PEOPLE.flatMap((person) => {
+  const people = usePeople()
+  const notes = people.flatMap((person) => {
     const note = person.id === 'fuf' ? entry.fuf_note : entry.cookie_note
     return note ? [{ person, note }] : []
   })
@@ -59,7 +60,7 @@ export const HistoryEntryCard = memo(function HistoryEntryCard({ entry, onOpen }
 
         <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-2">
           <div className="flex flex-col gap-1">
-            {PEOPLE.map((person) => (
+            {people.map((person) => (
               <StarDisplay
                 key={person.id}
                 person={person.id}

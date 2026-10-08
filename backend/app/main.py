@@ -9,6 +9,7 @@ from sqlmodel import Session
 
 from app import db
 from app.api import api_router
+from app.api.people import seed_people
 from app.api.picks import delete_unconfirmed_picks
 from app.config import get_settings
 from app.frontend import FRONTEND_DIST, mount_frontend
@@ -20,6 +21,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     db.create_db_and_tables()
     with Session(db.engine) as session:
         delete_unconfirmed_picks(session)
+        seed_people(session)
     app.state.tmdb = TMDBClient(get_settings().tmdb_token)
     yield
     await app.state.tmdb.aclose()

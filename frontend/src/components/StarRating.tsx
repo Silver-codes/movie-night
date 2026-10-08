@@ -1,6 +1,6 @@
 import { useRef, useState, type KeyboardEvent } from 'react'
 import type { Person, Stars } from '../api/types'
-import { personInfo } from '../people'
+import { usePersonInfo } from '../people'
 import { PersonAvatar } from './PersonAvatar'
 import { StarIcon } from './StarIcon'
 
@@ -28,7 +28,7 @@ type Props = {
  * Hovering (mouse only) previews the result: hovering the current star shows all stars empty with a ×.
  */
 export function StarRating({ person, value, onChange, size = 'md', label, showName = false }: Props) {
-  const info = personInfo(person)
+  const info = usePersonInfo(person)
   const [hovered, setHovered] = useState<number | null>(null)
   const buttons = useRef<(HTMLButtonElement | null)[]>([])
   const previewClear = hovered !== null && hovered === value

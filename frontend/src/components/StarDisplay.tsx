@@ -1,11 +1,11 @@
 import type { Person, Stars } from '../api/types'
-import { personInfo } from '../people'
+import { usePersonInfo } from '../people'
 import { PersonAvatar } from './PersonAvatar'
 import { StarIcon } from './StarIcon'
 
 /** Compact read-only stars for cards: avatar + 5 small stars, or a dash when unrated. */
 export function StarDisplay({ person, value }: { person: Person; value: Stars }) {
-  const info = personInfo(person)
+  const info = usePersonInfo(person)
   return (
     <div className="flex items-center gap-1.5">
       <PersonAvatar person={person} size="xs" decorative />

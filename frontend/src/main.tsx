@@ -7,6 +7,7 @@ import '@fontsource-variable/inter/wght.css'
 import '@fontsource-variable/outfit/wght.css'
 import { Toaster } from './components/Toaster'
 import './index.css'
+import { applyPersonColors, readCachedProfiles } from './lib/personProfiles'
 import { toast } from './lib/toast'
 import { router } from './router'
 
@@ -19,6 +20,9 @@ const queryClient = new QueryClient({
     onError: (error) => toast.error(error.message),
   }),
 })
+
+// The people's colors from the last visit, before the first paint (PeopleSync keeps them current).
+applyPersonColors(readCachedProfiles())
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
