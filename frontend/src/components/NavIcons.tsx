@@ -139,6 +139,15 @@ export function WarningIcon(props: IconProps) {
   )
 }
 
+export function GearIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M10.3 3.5h3.4l.5 2.4 1.7 1 2.3-.8 1.7 3-1.8 1.6v1.9l1.8 1.6-1.7 3-2.3-.8-1.7 1-.5 2.4h-3.4l-.5-2.4-1.7-1-2.3.8-1.7-3 1.8-1.6v-1.9L3.6 9.1l1.7-3 2.3.8 1.7-1 .5-2.4Z" />
+      <circle cx="12" cy="12" r="2.8" />
+    </Icon>
+  )
+}
+
 export function ArrowLeftIcon(props: IconProps) {
   return (
     <Icon {...props}>

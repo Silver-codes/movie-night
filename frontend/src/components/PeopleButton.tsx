@@ -1,26 +1,20 @@
 import { useState } from 'react'
-import { PEOPLE, usePeople } from '../people'
+import { GearIcon } from './NavIcons'
 import { PeopleSettingsModal } from './PeopleSettingsModal'
-import { PersonAvatar } from './PersonAvatar'
 
-/** Both avatars in the header; opens the name / emoji / color settings. */
+/** Gear button in the header; opens the name / emoji / color settings. */
 export function PeopleButton() {
   const [open, setOpen] = useState(false)
-  const [a, b] = usePeople()
   return (
     <>
       <button
         type="button"
         onClick={() => setOpen(true)}
-        aria-label={`${a.name} and ${b.name}: change names`}
+        aria-label="Change names"
         title="Change names"
-        className="flex items-center rounded-full p-1 transition hover:bg-ink-800 active:scale-95"
+        className="grid size-10 place-items-center rounded-full text-muted transition hover:bg-ink-800 hover:text-fg active:scale-95"
       >
-        {PEOPLE.map((person, index) => (
-          <span key={person.id} className={index > 0 ? '-ml-2.5' : ''}>
-            <PersonAvatar person={person.id} size="md" decorative />
-          </span>
-        ))}
+        <GearIcon className="size-5" />
       </button>
       <PeopleSettingsModal open={open} onClose={() => setOpen(false)} />
     </>
