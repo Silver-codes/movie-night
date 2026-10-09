@@ -6,6 +6,9 @@ const SIZES = {
   sm: 'size-6 text-sm',
   md: 'size-9 text-lg',
   lg: 'size-12 text-2xl',
+  // Pick page stages: phone size as before, bigger on laptops/TVs so they read from the couch.
+  stageSm: 'size-5 text-xs lg:size-7 lg:text-base',
+  stage: 'size-7 text-base lg:size-11 lg:text-2xl',
 } as const
 
 type Props = {

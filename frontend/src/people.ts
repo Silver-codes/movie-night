@@ -14,7 +14,6 @@ export type PersonSlot = {
   /** Translucent tint for avatar circles and chips. */
   softBgClass: string
   ringClass: string
-  borderClass: string
 }
 
 export type PersonInfo = PersonSlot & {
@@ -29,14 +28,12 @@ export const PEOPLE: readonly PersonSlot[] = [
     textClass: 'text-fuf',
     softBgClass: 'bg-fuf-soft',
     ringClass: 'ring-fuf',
-    borderClass: 'border-fuf',
   },
   {
     id: 'cookie',
     textClass: 'text-cookie',
     softBgClass: 'bg-cookie-soft',
     ringClass: 'ring-cookie',
-    borderClass: 'border-cookie',
   },
 ]
 

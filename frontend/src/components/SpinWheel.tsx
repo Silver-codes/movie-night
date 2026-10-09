@@ -92,15 +92,17 @@ export function SpinWheel({ candidates, winnerId, spinKey, showPercent, sound, o
   const winner = candidates[winnerIndex]
 
   return (
-    <div className="relative mx-auto w-full max-w-md">
+    // Phones: as wide as the screen allows. Laptops/TVs: as tall as the screen allows under the nav and the
+    // stage's header row (~15rem), so the whole wheel stays in view; labels scale with it (SVG units).
+    <div className="relative mx-auto w-full max-w-md lg:max-w-[max(28rem,calc(100dvh-15rem))]">
       {/* Pointer at 12 o'clock */}
       <svg
         viewBox="0 0 40 44"
         aria-hidden="true"
-        className="absolute top-0 left-1/2 z-10 w-9 -translate-x-1/2 -translate-y-1 drop-shadow-[0_4px_6px_rgb(0_0_0/0.6)]"
+        className="absolute top-0 left-1/2 z-10 w-9 -translate-x-1/2 -translate-y-1 drop-shadow-[0_4px_6px_rgb(0_0_0/0.6)] lg:w-[8%] lg:-translate-y-2"
       >
         <path d="M20 42 4 8a16 16 0 0 1 32 0Z" className="fill-fg" />
-        <circle cx="20" cy="12" r="5" className="fill-accent" />
+        <circle cx="20" cy="12" r="5" className="fill-ink-950" />
       </svg>
 
       <button
@@ -131,7 +133,7 @@ export function SpinWheel({ candidates, winnerId, spinKey, showPercent, sound, o
                   cx={C + (C - 8) * Math.cos(angle)}
                   cy={C + (C - 8) * Math.sin(angle)}
                   r={2.6}
-                  className={i % 2 === 0 ? 'fill-accent-strong' : 'fill-fg/50'}
+                  className={i % 2 === 0 ? 'fill-fg/70' : 'fill-fg/30'}
                 />
               )
             })}
@@ -185,7 +187,14 @@ export function SpinWheel({ candidates, winnerId, spinKey, showPercent, sound, o
               )
             })}
 
-            <circle cx={C} cy={C} r={HUB} className="fill-ink-950 stroke-accent" strokeWidth={3} />
+            {/* The hub joins the winner's blue only once the wheel has landed. */}
+            <circle
+              cx={C}
+              cy={C}
+              r={HUB}
+              className={`fill-ink-950 transition-[stroke] duration-500 ${landed ? 'stroke-accent' : 'stroke-ink-600'}`}
+              strokeWidth={3}
+            />
             <text x={C} y={C} textAnchor="middle" dominantBaseline="central" fontSize={26}>
               🍿
             </text>

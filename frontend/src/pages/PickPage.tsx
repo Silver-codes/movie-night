@@ -17,12 +17,13 @@ import {
 import { PageHeader } from '../components/PageHeader'
 import { PickFilters } from '../components/PickFilters'
 import { PickMethodCard } from '../components/PickMethodCard'
+import { PickActions } from '../components/PickActions'
 import { PickWinner } from '../components/PickWinner'
 import { RateReminder } from '../components/RateReminder'
 import { Skeleton } from '../components/Skeleton'
 import { SoundToggle } from '../components/SoundToggle'
 import { SpinWheel } from '../components/SpinWheel'
-import { TopRatedPodium } from '../components/TopRatedPodium'
+import { PODIUM_LANDED_MS, TopRatedPodium } from '../components/TopRatedPodium'
 import { fireConfetti, preloadConfetti } from '../lib/confetti'
 import { PICK_METHODS, pickMethodInfo, RUNTIME_LIMITS, type RuntimeLimit } from '../lib/pickMethods'
 import { loadSoundEnabled, saveSoundEnabled, unlockAudio } from '../lib/tick'
@@ -39,12 +40,10 @@ const METHOD_ICONS: Record<PickMethod, ReactNode> = {
 
 type Stage =
   | { kind: 'choose' }
-  /** Top rated: the ranking, before "Pick this". */
+  /** Top rated: the ranking, with the decision on #1 beside it. */
   | { kind: 'podium'; result: PickResult }
   /** Wheels: spinning until `landed`, then the winner shows next to the wheel. */
   | { kind: 'wheel'; result: PickResult; landed: boolean }
-  /** Top rated after "Pick this". */
-  | { kind: 'winner'; result: PickResult }
 
 function parseMethod(value: string | null): PickMethod {
   return PICK_METHODS.find((m) => m.value === value)?.value ?? DEFAULT_METHOD
@@ -53,6 +52,12 @@ function parseMethod(value: string | null): PickMethod {
 function parseMaxRuntime(value: string | null): RuntimeLimit | null {
   return RUNTIME_LIMITS.find((l) => String(l.value) === value)?.value ?? null
 }
+
+/**
+ * Laptops/TVs: the wheel and podium stages break out of the page column to nearly the full window (max 100rem), so the
+ * wheel and the winner can be sized for the couch. The negative margins are (column - target width) / 2.
+ */
+const STAGE_BREAKOUT_CLASS = 'lg:mx-[calc(50%-min(50vw-2rem,50rem))]'
 
 /** The bigger buttons in the sticky "in the hat" bar. */
 const barButtonClass =
@@ -74,12 +79,23 @@ export function PickPage() {
   const [sound, setSound] = useState(loadSoundEnabled)
   const stageRegion = useRef<HTMLDivElement>(null)
 
-  // The button that started the pick is gone; move focus to the podium/wheel (the winner card focuses itself).
+  // The button that started the pick is gone; move focus to the wheel (the podium and the winner card
+  // focus the winner's title themselves).
   useEffect(() => {
-    if (stage.kind === 'podium' || stage.kind === 'wheel') {
+    if (stage.kind === 'wheel') {
       stageRegion.current?.focus({ preventScroll: true })
     }
   }, [stage.kind])
+
+  // Top rated: confetti once #1 has sprung onto the podium.
+  const podiumPickId = stage.kind === 'podium' ? stage.result.pick_id : null
+  useEffect(() => {
+    if (podiumPickId === null) {
+      return
+    }
+    const timer = window.setTimeout(fireConfetti, PODIUM_LANDED_MS)
+    return () => window.clearTimeout(timer)
+  }, [podiumPickId])
 
   const movies = useMemo(() => watchlist.data ?? [], [watchlist.data])
   const genres = useMemo(
@@ -131,11 +147,6 @@ export function PickPage() {
 
   function onWheelDone(pickId: string) {
     setStage((s) => (s.kind === 'wheel' && s.result.pick_id === pickId ? { ...s, landed: true } : s))
-    fireConfetti()
-  }
-
-  function onPickTopRated(result: PickResult) {
-    setStage({ kind: 'winner', result })
     fireConfetti()
   }
 
@@ -300,43 +311,55 @@ export function PickPage() {
     const confirmed = confirmedPickId === result.pick_id
     const spinAgain = () => runPick({ ...request(), method: result.method })
     const canSpinAgain = stage.kind === 'wheel' && stage.landed && !confirmed && !busy
-    const winner = (
-      <PickWinner
-        movie={result.winner}
-        method={result.method}
+    // Top rated only has something to redo when a coin flip settled a tie.
+    const tied = result.candidates.filter((c) => c.probability > 0).length > 1
+    let againLabel: string | undefined
+    if (stage.kind === 'wheel') {
+      againLabel = createPick.isPending ? 'Spinning…' : 'Spin again'
+    } else if (tied) {
+      againLabel = createPick.isPending ? 'Flipping…' : 'Flip again'
+    }
+    const actions = (
+      <PickActions
+        movieId={result.winner.id}
         confirmed={confirmed}
         confirming={confirmPick.isPending}
         onConfirm={() => onConfirm(result)}
-        againLabel={stage.kind === 'wheel' ? (createPick.isPending ? 'Spinning…' : 'Spin again') : 'Back'}
-        onAgain={stage.kind === 'wheel' && !confirmed ? spinAgain : backToChoose}
+        againLabel={againLabel}
+        onAgain={spinAgain}
+        onPickSomethingElse={backToChoose}
         onNotTonight={() => onNotTonight(result)}
         busy={busy}
       />
     )
 
+    // Stage mode: the page header shrinks to this row, so the pick itself gets the screen.
     content = (
-      <div ref={stageRegion} tabIndex={-1} role="region" aria-label={pickMethodInfo(result.method).label} className="flex flex-col gap-6 outline-none">
-        <button
-          type="button"
-          onClick={backToChoose}
-          className="inline-flex items-center gap-1.5 self-start text-sm font-medium text-muted transition hover:text-fg"
-        >
-          <ArrowLeftIcon className="size-4" />
-          Change how we pick
-        </button>
+      <div
+        ref={stageRegion}
+        tabIndex={-1}
+        role="region"
+        aria-label={pickMethodInfo(result.method).label}
+        className={`flex flex-col gap-6 outline-none ${STAGE_BREAKOUT_CLASS}`}
+      >
+        <div className="flex items-center justify-between gap-4">
+          <button
+            type="button"
+            onClick={backToChoose}
+            className="-my-2 inline-flex items-center gap-1.5 rounded-lg py-2 text-sm font-medium text-muted transition hover:text-fg lg:text-lg"
+          >
+            <ArrowLeftIcon className="size-4 lg:size-5" />
+            Change how we pick
+          </button>
+          <p className="font-display text-lg font-semibold text-muted lg:text-2xl">{pickMethodInfo(result.method).label}</p>
+        </div>
 
         {stage.kind === 'podium' && (
-          <TopRatedPodium
-            candidates={result.candidates}
-            winner={result.winner}
-            onPick={() => onPickTopRated(result)}
-          />
+          <TopRatedPodium key={result.pick_id} candidates={result.candidates} winner={result.winner} actions={actions} />
         )}
 
-        {stage.kind === 'winner' && winner}
-
         {stage.kind === 'wheel' && (
-          <div className="grid items-center gap-8 lg:grid-cols-2">
+          <div className="grid items-center gap-8 lg:grid-cols-2 lg:items-start">
             <div className="flex flex-col items-center gap-3">
               <SpinWheel
                 candidates={result.candidates}
@@ -348,24 +371,36 @@ export function PickPage() {
                 onSpinAgain={canSpinAgain ? spinAgain : undefined}
               />
               <div className="flex items-center gap-3">
-                <p className="text-sm text-muted">
+                <p className="text-sm text-muted lg:text-lg">
                   {canSpinAgain
                     ? 'Tap the wheel to spin again'
                     : `${result.candidates.length} ${result.candidates.length === 1 ? 'movie' : 'movies'} on the wheel`}
                 </p>
-                <SoundToggle on={sound} onToggle={toggleSound} className="size-9" />
+                <SoundToggle on={sound} onToggle={toggleSound} className="size-9 lg:size-11" />
               </div>
             </div>
-            <AnimatePresence>{stage.landed && <div key={result.pick_id}>{winner}</div>}</AnimatePresence>
+            <AnimatePresence>
+              {stage.landed && (
+                <div key={result.pick_id}>
+                  <PickWinner movie={result.winner} method={result.method} actions={actions} />
+                </div>
+              )}
+            </AnimatePresence>
           </div>
         )}
       </div>
     )
   }
 
+  const stageMode = stage.kind !== 'choose' && watchlist.data !== undefined && movies.length > 0
   return (
     <>
-      <PageHeader title="What are we watching?" subtitle="Go with the top rated, or let the wheel decide." />
+      {stageMode ? (
+        // The page title stays for screen readers and as the focus fallback.
+        <h1 className="sr-only">What are we watching?</h1>
+      ) : (
+        <PageHeader title="What are we watching?" subtitle="Go with the top rated, or let the wheel decide." />
+      )}
       {content}
     </>
   )

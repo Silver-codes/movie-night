@@ -50,7 +50,7 @@ export function PersonProfileEditor({ person, other }: Props) {
   return (
     <section
       aria-label={person.name}
-      className={`flex flex-col gap-5 rounded-2xl border-t-2 bg-ink-900 p-4 ring-1 ring-ink-700 ${person.borderClass}`}
+      className="flex flex-col gap-5 rounded-2xl bg-ink-900 p-4 ring-1 ring-ink-700"
     >
       <div className="flex items-center gap-3">
         <PersonAvatar person={person.id} size="lg" decorative />

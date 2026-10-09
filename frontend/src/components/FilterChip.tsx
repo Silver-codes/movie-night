@@ -8,6 +8,9 @@ type Props = {
   activeClass?: string
 }
 
+/** Active look for a default choice ("Any length"): selected, but not worth the accent. */
+export const FILTER_CHIP_NEUTRAL_ACTIVE = 'bg-ink-700 text-fg ring-ink-600'
+
 /** A toggle pill for filters. */
 export function FilterChip({ active, onClick, children, activeClass = 'bg-accent-soft text-accent ring-accent' }: Props) {
   return (

@@ -9,7 +9,7 @@ export function RateReminder({ movie }: { movie: Movie }) {
   return (
     <Link
       to={`/watchlist?movie=${movie.id}`}
-      className="group flex items-center gap-3 rounded-2xl bg-accent-soft p-3 pr-4 ring-1 ring-accent/40 transition hover:ring-accent"
+      className="group flex items-center gap-3 rounded-2xl bg-ink-900 p-3 pr-4 ring-1 ring-ink-700 transition hover:bg-ink-800 hover:ring-ink-600"
     >
       <PosterImage src={posterUrl(movie.poster_path, 'w185')} title={movie.title} decorative compact className="w-10 shrink-0 rounded-md!" />
       <span className="min-w-0 flex-1">
@@ -19,7 +19,7 @@ export function RateReminder({ movie }: { movie: Movie }) {
           Rate it after watching
         </span>
       </span>
-      <span className="shrink-0 text-sm font-semibold text-accent group-hover:text-accent-strong">Rate →</span>
+      <span className="shrink-0 text-sm font-semibold text-muted transition group-hover:text-fg">Rate →</span>
     </Link>
   )
 }

@@ -1,5 +1,5 @@
 import { RUNTIME_LIMITS, type RuntimeLimit } from '../lib/pickMethods'
-import { FilterChip } from './FilterChip'
+import { FILTER_CHIP_NEUTRAL_ACTIVE, FilterChip } from './FilterChip'
 import { ScrollRow } from './ScrollRow'
 
 type Props = {
@@ -17,7 +17,12 @@ export function PickFilters({ genres, genre, onGenreChange, maxRuntime, onMaxRun
       <fieldset className="flex min-w-0 flex-col gap-2">
         <legend className="mb-2 text-sm font-semibold tracking-wide text-muted uppercase">Time</legend>
         <ScrollRow>
-          <FilterChip active={maxRuntime === null} onClick={() => onMaxRuntimeChange(null)}>
+          {/* "Any" is the default, so it stays neutral; blue marks a filter that's actually on. */}
+          <FilterChip
+            active={maxRuntime === null}
+            activeClass={FILTER_CHIP_NEUTRAL_ACTIVE}
+            onClick={() => onMaxRuntimeChange(null)}
+          >
             Any length
           </FilterChip>
           {RUNTIME_LIMITS.map((limit) => (
@@ -35,7 +40,7 @@ export function PickFilters({ genres, genre, onGenreChange, maxRuntime, onMaxRun
         <fieldset className="flex min-w-0 flex-col gap-2">
           <legend className="mb-2 text-sm font-semibold tracking-wide text-muted uppercase">Genre</legend>
           <ScrollRow>
-            <FilterChip active={genre === null} onClick={() => onGenreChange(null)}>
+            <FilterChip active={genre === null} activeClass={FILTER_CHIP_NEUTRAL_ACTIVE} onClick={() => onGenreChange(null)}>
               Any genre
             </FilterChip>
             {genres.map((g) => (
