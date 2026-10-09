@@ -23,11 +23,14 @@ export function PickWinner({ movie, method, actions }: Props) {
   const heading = useRef<HTMLHeadingElement>(null)
   const meta = [movie.year, formatRuntime(movie.runtime)].filter(Boolean).join(' · ')
 
-  // On phones the wheel fills the screen; bring the winner into view and move focus to it
-  // (the button that started the pick is gone or disabled by now).
+  // Move focus to the winner (the button that started the pick is gone or disabled by now). Below `lg` the
+  // winner sits under the wheel, so bring it into view; on laptops/TVs it's already beside the wheel, and
+  // scrolling would push the wheel's top under the nav.
   useEffect(() => {
     heading.current?.focus({ preventScroll: true })
-    ref.current?.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'nearest' })
+    if (!window.matchMedia('(min-width: 64rem)').matches) {
+      ref.current?.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'nearest' })
+    }
   }, [movie.id, reduceMotion])
 
   return (
@@ -40,7 +43,7 @@ export function PickWinner({ movie, method, actions }: Props) {
       className="scroll-mb-24 overflow-hidden rounded-3xl bg-ink-900 ring-1 ring-ink-700"
     >
       {/* On laptops/TVs the backdrop is capped, so the title and the actions stay on screen. */}
-      <div className="relative aspect-video w-full bg-ink-800 lg:aspect-auto lg:h-[min(24rem,30dvh)]">
+      <div className="relative aspect-video w-full bg-ink-800 lg:aspect-auto lg:h-[min(24rem,26dvh)]">
         <BackdropImage movie={movie} />
         <div className="absolute inset-0 bg-linear-to-t from-ink-900 via-ink-900/50 to-transparent" />
         <p className="absolute top-4 left-4 rounded-full bg-ink-950/80 px-3 py-1 text-xs font-semibold tracking-wide text-fg/80 uppercase backdrop-blur lg:top-5 lg:left-5 lg:px-4 lg:py-1.5 lg:text-sm">
@@ -60,7 +63,9 @@ export function PickWinner({ movie, method, actions }: Props) {
             <h2
               ref={heading}
               tabIndex={-1}
-              className="text-3xl leading-tight font-semibold tracking-tight text-balance break-words outline-none sm:text-4xl xl:text-5xl xl:leading-[1.1]"
+              // The biggest size only on tall screens: on a 1280×800 laptop it wraps to a third line and pushes
+              // the actions below the window.
+              className="text-3xl leading-tight font-semibold tracking-tight text-balance break-words outline-none sm:text-4xl xl:[@media(min-height:56rem)]:text-5xl xl:[@media(min-height:56rem)]:leading-[1.1]"
             >
               {movie.title}
             </h2>

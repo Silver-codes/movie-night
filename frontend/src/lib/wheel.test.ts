@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest'
-import { buildSlices, sliceAtPointer, targetRotation, truncate } from './wheel'
+import {
+  buildSlices,
+  fitLabels,
+  readsUpsideDown,
+  shortTitles,
+  sliceAtPointer,
+  targetRotation,
+  truncate,
+} from './wheel'
 
 /** Small seeded PRNG (mulberry32), so failures are reproducible. */
 function seeded(seed: number): () => number {
@@ -62,6 +70,66 @@ describe('targetRotation', () => {
       expect(landing).toBeGreaterThanOrEqual(90 + 0.15 * 90 - 1e-9)
       expect(landing).toBeLessThanOrEqual(90 + 0.85 * 90 + 1e-9)
     }
+  })
+})
+
+describe('shortTitles', () => {
+  it('drops the start a series shares', () => {
+    expect(
+      shortTitles([
+        "Harry Potter and the Philosopher's Stone",
+        'Harry Potter and the Chamber of Secrets',
+        'Harry Potter and the Goblet of Fire',
+        'Paddington 2',
+      ]),
+    ).toEqual(["Philosopher's Stone", 'Chamber of Secrets', 'Goblet of Fire', 'Paddington 2'])
+  })
+
+  it('cuts after the series separator', () => {
+    expect(
+      shortTitles(['The Lord of the Rings: The Fellowship of the Ring', 'The Lord of the Rings: The Two Towers']),
+    ).toEqual(['The Fellowship of the Ring', 'The Two Towers'])
+    expect(shortTitles(['Mission: Impossible – Fallout', 'Mission: Impossible – Dead Reckoning'])).toEqual([
+      'Fallout',
+      'Dead Reckoning',
+    ])
+  })
+
+  it('keeps full titles when a short one would say nothing', () => {
+    const parts = ['Harry Potter and the Deathly Hallows: Part 1', 'Harry Potter and the Deathly Hallows: Part 2']
+    expect(shortTitles(parts)).toEqual(parts)
+    const knight = ['The Dark Knight', 'The Dark Knight Rises']
+    expect(shortTitles(knight)).toEqual(knight)
+  })
+
+  it('leaves unrelated titles alone', () => {
+    const titles = ['The Matrix', 'The Thing', 'Up']
+    expect(shortTitles(titles)).toEqual(titles)
+  })
+})
+
+describe('fitLabels', () => {
+  it('cuts labels that would collide in the middle, others at the end', () => {
+    const [one, two, other] = fitLabels(
+      ['Harry Potter and the Deathly Hallows: Part 1', 'Harry Potter and the Deathly Hallows: Part 2', 'Paddington 2 the Movie'],
+      [16, 16, 16],
+    )
+    expect(one).not.toBe(two)
+    expect(one.endsWith('Part 1')).toBe(true)
+    expect(two.endsWith('Part 2')).toBe(true)
+    expect(other).toBe('Paddington 2 th…')
+    for (const label of [one, two, other]) {
+      expect(label.length).toBeLessThanOrEqual(16)
+    }
+  })
+})
+
+describe('readsUpsideDown', () => {
+  it('flips labels on the left half of the screen', () => {
+    expect(readsUpsideDown(90, 0)).toBe(false)
+    expect(readsUpsideDown(270, 0)).toBe(true)
+    expect(readsUpsideDown(270, 180)).toBe(false)
+    expect(readsUpsideDown(90, -540)).toBe(true)
   })
 })
 

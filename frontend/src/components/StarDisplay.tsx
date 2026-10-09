@@ -29,7 +29,7 @@ export function StarDisplay({ person, value, size = 'sm' }: Props) {
         </span>
       )}
       {value === null ? (
-        <span className={`${s.text} text-faint`}>
+        <span className={`${s.text} text-muted`}>
           <span className="sr-only">{info.name}: </span>not rated
         </span>
       ) : (

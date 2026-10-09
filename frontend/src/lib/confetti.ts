@@ -16,13 +16,17 @@ export function preloadConfetti(): void {
   }
 }
 
-/** A celebratory burst from both bottom corners in the theme's colors (skipped with reduced motion). */
+/**
+ * A celebratory burst from both bottom corners in the theme's colors (skipped with reduced motion). It falls
+ * behind the page (above the room glow, `body::before`): the solid winner card and wheel hide it, so it
+ * fills the room around them and never covers the winner's title or buttons.
+ */
 export function fireConfetti(): void {
   if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
     return
   }
   const colors = themeColors()
-  const shared = { particleCount: 90, spread: 70, startVelocity: 55, ticks: 220, colors, zIndex: 60 }
+  const shared = { particleCount: 90, spread: 70, startVelocity: 55, ticks: 220, colors, zIndex: -1 }
   // Loaded on first use (or by preloadConfetti); it isn't needed anywhere else.
   void loadConfetti().then(({ default: confetti }) => {
     void confetti({ ...shared, angle: 60, origin: { x: 0, y: 0.9 } })

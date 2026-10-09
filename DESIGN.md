@@ -197,7 +197,7 @@ The spacing rhythm follows Tailwind's 4px scale; groups are typically 8–12px a
 
 **The Same Room, Two Screens Rule.** Every screen must work on a laptop or TV for two people sitting back and on a 375px phone. Overlays switch shape (bottom sheet ↔ side panel or centered dialog), not content.
 
-**Stage mode (Pick page).** Once a pick is on screen, the page header shrinks to a back row and the method name, and from `lg` the moment is sized for the couch: the wheel stage breaks out of the column (up to 100rem), the wheel is as tall as the window allows (`max(28rem, 100dvh − 15rem)`), and secondary text is at least 18px, with each person's name and large stars on the winner. The whole wheel, the winner and its actions must fit a 1440×900 screen without scrolling.
+**Stage mode (Pick page).** Once a pick is on screen, the page header shrinks to a back row and the method name, and from `lg` the moment is sized for the couch: the wheel stage breaks out of the column (up to 100rem), the wheel is as tall as the window allows (`max(28rem, 100dvh − 18rem)`), and secondary text is at least 18px, with each person's name and large stars on the winner. The whole wheel, the winner and its actions must fit a 1440×900 screen without scrolling.
 
 ## Elevation & Depth
 

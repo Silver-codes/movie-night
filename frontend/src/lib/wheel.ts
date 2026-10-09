@@ -60,3 +60,76 @@ export function slicePath(cx: number, cy: number, r: number, slice: Slice): stri
 export function truncate(text: string, max: number): string {
   return text.length <= max ? text : `${text.slice(0, Math.max(1, max - 1)).trimEnd()}…`
 }
+
+/** Shorten a label to `max` characters by cutting out its middle, so both ends stay readable. */
+export function truncateMiddle(text: string, max: number): string {
+  if (text.length <= max) {
+    return text
+  }
+  const room = Math.max(2, max - 1)
+  const head = Math.floor(room / 2)
+  return `${text.slice(0, head).trimEnd()}…${text.slice(text.length - (room - head)).trimStart()}`
+}
+
+const SEPARATOR = /^[:\-–—]+$|:$/
+// What's left after the series name must still name the movie: "Part 2" or "II" alone doesn't.
+const TOO_GENERIC = /^((part|chapter|vol\.?|volume|book)\s+\S+|\S{1,3})$/i
+
+/**
+ * Wheel labels for a set of titles: movies of one series (same first two words) lose the start they all share,
+ * so "Harry Potter and the Goblet of Fire" next to "…Chamber of Secrets" reads "Goblet of Fire". The cut
+ * prefers to fall after a separator ("The Lord of the Rings: The Two Towers" → "The Two Towers"), and a
+ * series keeps its full titles when any of them would be left empty or meaningless.
+ */
+export function shortTitles(titles: readonly string[]): string[] {
+  const words = titles.map((t) => t.trim().split(/\s+/))
+  const key = (w: string[]) => w.slice(0, 2).join(' ').toLowerCase()
+  const series = new Map<string, number[]>()
+  words.forEach((w, i) => series.set(key(w), [...(series.get(key(w)) ?? []), i]))
+
+  const result = [...titles]
+  for (const members of series.values()) {
+    if (members.length < 2) {
+      continue
+    }
+    const shortest = Math.min(...members.map((i) => words[i].length))
+    let shared = 0
+    while (
+      shared < shortest &&
+      members.every((i) => words[i][shared].toLowerCase() === words[members[0]][shared].toLowerCase())
+    ) {
+      shared++
+    }
+    // The shared words are the same for every member, so the cut is too.
+    const lastSeparator = words[members[0]].slice(0, shared).findLastIndex((w) => SEPARATOR.test(w))
+    const cut = lastSeparator === -1 ? shared : lastSeparator + 1
+    const rests = members.map((i) => {
+      const rest = words[i].slice(cut)
+      while (rest.length > 0 && SEPARATOR.test(rest[0])) {
+        rest.shift()
+      }
+      return rest.join(' ')
+    })
+    if (rests.every((rest) => rest !== '' && !TOO_GENERIC.test(rest))) {
+      members.forEach((i, m) => (result[i] = rests[m]))
+    }
+  }
+  return result
+}
+
+/**
+ * Fit each label into its slice (`max[i]` characters). Labels that would still read the same once shortened
+ * are cut in the middle instead, so their different endings ("…Part 1", "…Part 2") stay visible.
+ */
+export function fitLabels(labels: readonly string[], max: readonly number[]): string[] {
+  const fitted = labels.map((label, i) => truncate(label, max[i]))
+  const counts = new Map<string, number>()
+  fitted.forEach((f) => counts.set(f, (counts.get(f) ?? 0) + 1))
+  return fitted.map((f, i) => ((counts.get(f) ?? 0) > 1 && labels[i] !== f ? truncateMiddle(labels[i], max[i]) : f))
+}
+
+/** Whether a label at `angle` on a wheel turned by `rotation` sits on the left half, where it would read upside down. */
+export function readsUpsideDown(angle: number, rotation: number): boolean {
+  const onScreen = (((angle + rotation) % 360) + 360) % 360
+  return onScreen > 180 && onScreen < 360
+}

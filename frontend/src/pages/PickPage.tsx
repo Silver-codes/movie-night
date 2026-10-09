@@ -1,4 +1,3 @@
-import { AnimatePresence } from 'motion/react'
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Link, useSearchParams } from 'react-router'
 import { useMovies, useUpdateMovie } from '../api/movieHooks'
@@ -24,9 +23,11 @@ import { Skeleton } from '../components/Skeleton'
 import { SoundToggle } from '../components/SoundToggle'
 import { SpinWheel } from '../components/SpinWheel'
 import { PODIUM_LANDED_MS, TopRatedPodium } from '../components/TopRatedPodium'
+import { PointerReadout, WheelLegend } from '../components/WheelLegend'
 import { fireConfetti, preloadConfetti } from '../lib/confetti'
 import { PICK_METHODS, pickMethodInfo, RUNTIME_LIMITS, type RuntimeLimit } from '../lib/pickMethods'
 import { loadSoundEnabled, saveSoundEnabled, unlockAudio } from '../lib/tick'
+import { shortTitles } from '../lib/wheel'
 import { toast } from '../lib/toast'
 
 const ALL_WATCHLIST: MovieFilters = { status: 'watchlist' }
@@ -77,6 +78,8 @@ export function PickPage() {
   const [stage, setStage] = useState<Stage>({ kind: 'choose' })
   const [confirmedPickId, setConfirmedPickId] = useState<string | null>(null)
   const [sound, setSound] = useState(loadSoundEnabled)
+  /** The wheel slice under the pointer, lit up in the list beside the wheel. */
+  const [pointerIndex, setPointerIndex] = useState<number | null>(null)
   const stageRegion = useRef<HTMLDivElement>(null)
 
   // The button that started the pick is gone; move focus to the wheel (the podium and the winner card
@@ -136,6 +139,8 @@ export function PickPage() {
     }
     createPick.mutate(body, {
       onSuccess: (result) => {
+        // The new wheel reports its own pointer once it starts; the old index may not exist on it.
+        setPointerIndex(null)
         setStage(
           pickMethodInfo(result.method).isWheel ? { kind: 'wheel', result, landed: false } : { kind: 'podium', result },
         )
@@ -311,6 +316,7 @@ export function PickPage() {
     const confirmed = confirmedPickId === result.pick_id
     const spinAgain = () => runPick({ ...request(), method: result.method })
     const canSpinAgain = stage.kind === 'wheel' && stage.landed && !confirmed && !busy
+    const pointerCandidate = pointerIndex === null ? undefined : result.candidates[pointerIndex]
     // Top rated only has something to redo when a coin flip settled a tie.
     const tied = result.candidates.filter((c) => c.probability > 0).length > 1
     let againLabel: string | undefined
@@ -360,7 +366,8 @@ export function PickPage() {
 
         {stage.kind === 'wheel' && (
           <div className="grid items-center gap-8 lg:grid-cols-2 lg:items-start">
-            <div className="flex flex-col items-center gap-3">
+            {/* min-w-0: the readout's one-line title mustn't widen the grid column past the screen. */}
+            <div className="flex min-w-0 flex-col items-center gap-3">
               <SpinWheel
                 candidates={result.candidates}
                 winnerId={result.winner.id}
@@ -369,23 +376,28 @@ export function PickPage() {
                 sound={sound}
                 onDone={() => onWheelDone(result.pick_id)}
                 onSpinAgain={canSpinAgain ? spinAgain : undefined}
+                onPointerChange={setPointerIndex}
               />
-              <div className="flex items-center gap-3">
-                <p className="text-sm text-muted lg:text-lg">
-                  {canSpinAgain
-                    ? 'Tap the wheel to spin again'
-                    : `${result.candidates.length} ${result.candidates.length === 1 ? 'movie' : 'movies'} on the wheel`}
-                </p>
-                <SoundToggle on={sound} onToggle={toggleSound} className="size-9 lg:size-11" />
+              <div className="flex w-full max-w-md items-center justify-center gap-3 lg:max-w-none">
+                {/* Below lg the winner scrolls into view under the wheel and has its own "Spin again". */}
+                {canSpinAgain && <p className="hidden text-muted lg:block lg:text-lg">Tap the wheel to spin again</p>}
+                {!stage.landed && pointerCandidate && (
+                  <PointerReadout
+                    candidate={pointerCandidate}
+                    title={shortTitles(result.candidates.map((c) => c.movie.title))[pointerIndex ?? 0]}
+                    method={result.method}
+                    className="flex-1 lg:hidden"
+                  />
+                )}
+                <SoundToggle on={sound} onToggle={toggleSound} className="size-9 shrink-0 lg:size-11" />
               </div>
             </div>
-            <AnimatePresence>
-              {stage.landed && (
-                <div key={result.pick_id}>
-                  <PickWinner movie={result.winner} method={result.method} actions={actions} />
-                </div>
-              )}
-            </AnimatePresence>
+            {/* While it spins: who's on the wheel. Once it lands: the winner. */}
+            {stage.landed ? (
+              <PickWinner key={result.pick_id} movie={result.winner} method={result.method} actions={actions} />
+            ) : (
+              <WheelLegend candidates={result.candidates} method={result.method} activeIndex={pointerIndex} />
+            )}
           </div>
         )}
       </div>
