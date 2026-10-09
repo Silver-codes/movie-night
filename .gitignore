@@ -25,3 +25,6 @@ backups/
 
 #VS code folder
 .vscode/
+
+#UI and UX designer
+PRODUCT.md

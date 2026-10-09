@@ -15,8 +15,9 @@ echo Building the app...
 call npm run build || goto failed
 
 rem Open the browser as soon as the server answers (runs in the background).
-start "" /b powershell -NoProfile -WindowStyle Hidden -Command ^
-  "for ($i = 0; $i -lt 60; $i++) { try { Invoke-WebRequest -UseBasicParsing http://localhost:8000/api/health > $null; Start-Process 'http://localhost:8000'; break } catch { Start-Sleep -Milliseconds 500 } }"
+rem No -WindowStyle Hidden here: with /b it shares this console and would hide this window.
+start "" /b powershell -NoProfile -Command ^
+  "$ProgressPreference = 'SilentlyContinue'; for ($i = 0; $i -lt 60; $i++) { try { Invoke-WebRequest -UseBasicParsing http://localhost:8000/api/health > $null; Start-Process 'http://localhost:8000'; break } catch { Start-Sleep -Milliseconds 500 } }"
 
 echo.
 echo Movie Night is starting on http://localhost:8000
