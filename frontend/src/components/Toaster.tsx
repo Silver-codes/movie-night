@@ -1,4 +1,5 @@
-import { dismissToast, useToasts, type ToastKind } from '../lib/toast'
+import type { FocusEvent } from 'react'
+import { dismissToast, pauseToast, resumeToast, useToasts, type Toast, type ToastKind } from '../lib/toast'
 import { CloseIcon } from './NavIcons'
 
 // The kind shows as a small tinted badge in front of the message (not as a colored side border).
@@ -17,28 +18,62 @@ export function Toaster() {
       className="pointer-events-none fixed inset-x-0 top-[calc(0.75rem+env(safe-area-inset-top))] z-[60] flex flex-col items-center gap-2 px-4 md:inset-x-auto md:top-auto md:right-6 md:bottom-6 md:items-end"
     >
       {toasts.map((t) => (
-        <div
-          key={t.id}
-          role={t.kind === 'error' ? 'alert' : 'status'}
-          className="pointer-events-auto flex w-full max-w-sm items-start gap-3 rounded-xl bg-ink-800/95 px-4 py-3 shadow-2xl shadow-black/50 ring-1 ring-ink-700 backdrop-blur"
-        >
-          <span
-            aria-hidden="true"
-            className={`grid size-5 shrink-0 place-items-center rounded-full text-xs font-bold ${KIND_STYLES[t.kind].badge}`}
-          >
-            {KIND_STYLES[t.kind].icon}
-          </span>
-          <p className="flex-1 text-sm">{t.message}</p>
-          <button
-            type="button"
-            onClick={() => dismissToast(t.id)}
-            className="-m-2 rounded-md p-2 text-muted transition hover:text-fg"
-            aria-label="Dismiss"
-          >
-            <CloseIcon className="size-4" />
-          </button>
-        </div>
+        <ToastCard key={t.id} toast={t} />
       ))}
+    </div>
+  )
+}
+
+function ToastCard({ toast }: { toast: Toast }) {
+  const { id, kind, message, action } = toast
+  // Hovering or focusing the toast holds its countdown; it restarts once both the pointer and focus have left.
+  const resumeUnlessFocused = (el: HTMLElement) => {
+    if (!el.contains(document.activeElement)) {
+      resumeToast(id)
+    }
+  }
+  const resumeUnlessHovered = (e: FocusEvent<HTMLDivElement>) => {
+    if (!e.currentTarget.contains(e.relatedTarget) && !e.currentTarget.matches(':hover')) {
+      resumeToast(id)
+    }
+  }
+
+  return (
+    <div
+      role={kind === 'error' ? 'alert' : 'status'}
+      onPointerEnter={() => pauseToast(id)}
+      onPointerLeave={(e) => resumeUnlessFocused(e.currentTarget)}
+      onFocus={() => pauseToast(id)}
+      onBlur={resumeUnlessHovered}
+      className="pointer-events-auto flex w-full max-w-sm items-center gap-3 rounded-xl bg-ink-800/95 px-4 py-3 shadow-2xl shadow-black/50 ring-1 ring-ink-700 backdrop-blur"
+    >
+      <span
+        aria-hidden="true"
+        className={`grid size-5 shrink-0 place-items-center rounded-full text-xs font-bold ${KIND_STYLES[kind].badge}`}
+      >
+        {KIND_STYLES[kind].icon}
+      </span>
+      <p className="min-w-0 flex-1 text-sm break-words">{message}</p>
+      {action && (
+        <button
+          type="button"
+          onClick={() => {
+            dismissToast(id)
+            action.onClick()
+          }}
+          className="-my-1.5 shrink-0 rounded-lg px-3 py-1.5 text-sm font-semibold text-fg ring-1 ring-ink-600 transition hover:bg-ink-700"
+        >
+          {action.label}
+        </button>
+      )}
+      <button
+        type="button"
+        onClick={() => dismissToast(id)}
+        className="-m-2 shrink-0 rounded-md p-2 text-muted transition hover:text-fg"
+        aria-label="Dismiss"
+      >
+        <CloseIcon className="size-4" />
+      </button>
     </div>
   )
 }

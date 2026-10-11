@@ -51,6 +51,12 @@ function sliceFill(index: number, count: number): string {
 
 /** Spin ends with a long, gentle slow-down. */
 const SPIN_EASE = [0.12, 0.6, 0.08, 1] as const
+/** The first spin on this stage gets the full build-up; spinning again is about getting a new answer. */
+const FIRST_SPIN = { seconds: 5.8, minTurns: 6 }
+const RESPIN = { seconds: 3.4, minTurns: 3 }
+/** Skipping: a quick, confident slow-down onto the spot the spin was already heading for. */
+const SKIP_SECONDS = 0.6
+const SKIP_EASE = [0.16, 1, 0.3, 1] as const
 
 /** The SVG wheel; it always lands on the backend's winner. */
 export function SpinWheel({
@@ -76,16 +82,41 @@ export function SpinWheel({
     const titles = shortTitles(candidates.map((c) => c.movie.title))
     const layout = slices.map((slice, i) => {
       const sweep = slice.end - slice.start
+      const arcAt = (radius: number) => (2 * Math.PI * radius * sweep) / 360
       // Arc length at the label's radius caps the font size; tiny slices get no label.
-      const arc = (2 * Math.PI * R * 0.62 * sweep) / 360
+      const arc = arcAt(R * 0.62)
       const widest = Math.min(15, Math.max(8, arc * 0.5))
       // Near the hub slices are narrow; below ~18° neighbouring percentages would overlap.
       const showPct = showPercent && sweep >= 18
-      const labelRoom = showPct ? R - 18 - (HUB + 32) : R - 18 - (HUB + 8)
+      const length = titles[i].length
       // A long title gets a smaller font (down to a size still readable from the couch) before it's cut.
-      const fitting = labelRoom / (titles[i].length * 0.56)
-      const fontSize = Math.min(widest, Math.max(Math.min(widest, 10), fitting))
-      return { show: arc >= 9, fontSize, showPct, maxChars: Math.max(3, Math.floor(labelRoom / (fontSize * 0.56))) }
+      // (The epsilon: a title that fits exactly mustn't lose its last letter to floating point.)
+      const withFont = (room: number, fontSize: number) => ({
+        fontSize,
+        maxChars: Math.max(3, Math.floor(room / (fontSize * 0.56) + 1e-6)),
+      })
+      const fit = (room: number) =>
+        withFont(room, Math.min(widest, Math.max(Math.min(widest, 10), room / (length * 0.56))))
+      const fullRoom = R - 18 - (HUB + 8)
+      const inline = fit(showPct ? R - 18 - (HUB + 32) : fullRoom)
+      if (showPct && inline.maxChars < length) {
+        // The odds by the hub would cut the title: on a slice wide enough for two lines, they go under the
+        // title at the rim instead, and the title gets the whole radius. The narrowest point is the title's hub
+        // end, so a smaller font (down to the couch floor of 10) can make the lines fit there.
+        const preferred = fit(fullRoom)
+        for (const option of [preferred, withFont(fullRoom, Math.min(preferred.fontSize, 10))]) {
+          const titleEnd = R - 16 - Math.min(length, option.maxChars) * 0.56 * option.fontSize
+          const lines = option.fontSize + Math.min(11, option.fontSize) + 2
+          if (option.maxChars >= length && arcAt(titleEnd) >= lines * 1.25) {
+            return { show: true, ...option, showPct, stacked: true }
+          }
+        }
+        // Too narrow for two lines: the title wins and the odds stay in the legend and the pointer readout.
+        if (preferred.maxChars >= length) {
+          return { show: arc >= 9, ...preferred, showPct: false, stacked: false }
+        }
+      }
+      return { show: arc >= 9, ...inline, showPct, stacked: false }
     })
     const texts = fitLabels(titles, layout.map((l) => l.maxChars))
     return layout.map((l, i) => ({ ...l, text: texts[i] }))
@@ -98,13 +129,19 @@ export function SpinWheel({
   })
   // The spin that already finished; a later re-run (e.g. the reduced-motion setting changing) mustn't spin it again.
   const completedKey = useRef<string | null>(null)
+  /** Spins finished on this wheel; after the first, spins are shorter. Counted on finish, so StrictMode's re-run doesn't count. */
+  const finishedSpins = useRef(0)
+  /** Cuts the running spin short; null when nothing is spinning (or it's already being skipped). */
+  const skip = useRef<(() => void) | null>(null)
 
   useEffect(() => {
     if (completedKey.current === spinKey) {
       return
     }
     const finish = () => {
+      skip.current = null
       completedKey.current = spinKey
+      finishedSpins.current += 1
       setLandedKey(spinKey)
       latest.current.onDone()
     }
@@ -115,27 +152,60 @@ export function SpinWheel({
       finish()
       return
     }
+    const spin = finishedSpins.current === 0 ? FIRST_SPIN : RESPIN
     // Reduced motion: no extra full turns, just a short glide to the winner.
-    const target = targetRotation(rotation.get(), slice, reduceMotion ? 0 : 6 + Math.floor(Math.random() * 3))
+    const target = targetRotation(rotation.get(), slice, reduceMotion ? 0 : spin.minTurns + Math.floor(Math.random() * 3))
     let lastIndex = sliceAtPointer(slices, rotation.get())
     latest.current.onPointerChange?.(lastIndex)
-    const controls = animate(rotation, target, {
-      duration: reduceMotion ? 0.8 : 5.8,
-      ease: reduceMotion ? 'easeOut' : SPIN_EASE,
-      onUpdate: (value) => {
-        const index = sliceAtPointer(slices, value)
-        if (index !== lastIndex) {
-          lastIndex = index
-          latest.current.onPointerChange?.(index)
-          if (latest.current.sound && slices.length > 1) {
-            playTick()
-          }
+    const onUpdate = (value: number) => {
+      const index = sliceAtPointer(slices, value)
+      if (index !== lastIndex) {
+        lastIndex = index
+        latest.current.onPointerChange?.(index)
+        if (latest.current.sound && slices.length > 1) {
+          playTick()
         }
-      },
+      }
+    }
+    let controls = animate(rotation, target, {
+      duration: reduceMotion ? 0.8 : spin.seconds,
+      ease: reduceMotion ? 'easeOut' : SPIN_EASE,
+      onUpdate,
       onComplete: finish,
     })
-    return () => controls.stop()
+    skip.current = () => {
+      skip.current = null
+      controls.stop()
+      // The same landing spot without the remaining full turns, so the result can't change.
+      const now = rotation.get()
+      const rest = (((target - now) % 360) + 360) % 360
+      controls = animate(rotation, now + rest, { duration: SKIP_SECONDS, ease: SKIP_EASE, onUpdate, onComplete: finish })
+    }
+    return () => {
+      skip.current = null
+      controls.stop()
+    }
   }, [spinKey, slices, winnerIndex, winnerId, rotation, reduceMotion])
+
+  // Space or Enter skips the spin, unless focus is on another control (which keeps its own keys).
+  const spinning = !landed
+  useEffect(() => {
+    if (!spinning) {
+      return
+    }
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.key !== ' ' && e.key !== 'Enter') || e.repeat || !skip.current) {
+        return
+      }
+      if (e.target instanceof Element && e.target.closest('button, a, input, select, textarea, [role="radio"]')) {
+        return
+      }
+      e.preventDefault()
+      skip.current()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [spinning])
 
   const winner = candidates[winnerIndex]
 
@@ -156,9 +226,10 @@ export function SpinWheel({
 
       <button
         type="button"
-        onClick={onSpinAgain}
-        disabled={!landed || !onSpinAgain}
-        aria-label={landed && onSpinAgain ? 'Spin the wheel again' : undefined}
+        // While it spins, a tap skips to the result; once landed, it spins again (when allowed).
+        onClick={landed ? onSpinAgain : () => skip.current?.()}
+        disabled={landed && !onSpinAgain}
+        aria-label={landed ? (onSpinAgain ? 'Spin the wheel again' : undefined) : 'Skip to the result'}
         // Clipped to the circle: the spinning square's corners would otherwise widen the page.
         className="block w-full cursor-pointer overflow-hidden rounded-full shadow-[0_20px_40px_rgb(0_0_0/0.55)] transition-transform enabled:hover:scale-[1.01] enabled:active:scale-[0.99] disabled:cursor-default"
       >
@@ -205,6 +276,7 @@ export function SpinWheel({
                       text={label.text}
                       fontSize={label.fontSize}
                       percent={label.showPct ? Math.round(candidate.probability * 100) : null}
+                      stacked={label.stacked}
                       isWinner={isWinner}
                     />
                   )}
@@ -212,14 +284,8 @@ export function SpinWheel({
               )
             })}
 
-            {/* The hub joins the winner's blue only once the wheel has landed. */}
-            <circle
-              cx={C}
-              cy={C}
-              r={HUB}
-              className={`fill-ink-950 transition-[stroke] duration-500 ${landed ? 'stroke-accent' : 'stroke-ink-600'}`}
-              strokeWidth={3}
-            />
+            {/* The hub stays neutral: the winning slice is the one blue thing on the wheel. */}
+            <circle cx={C} cy={C} r={HUB} className="fill-ink-950 stroke-ink-600" strokeWidth={3} />
             <text x={C} y={C} textAnchor="middle" dominantBaseline="central" fontSize={26}>
               🍿
             </text>
@@ -241,6 +307,8 @@ type SliceLabelProps = {
   text: string
   fontSize: number
   percent: number | null
+  /** The odds sit under the title at the rim (a wide slice whose title needs the whole radius), not by the hub. */
+  stacked: boolean
   isWinner: boolean
 }
 
@@ -249,18 +317,22 @@ type SliceLabelProps = {
  * round to read left to right instead of upside down; it re-checks as the wheel turns, so it's right wherever
  * the wheel stops.
  */
-function SliceLabel({ rotation, angle, text, fontSize, percent, isWinner }: SliceLabelProps) {
+function SliceLabel({ rotation, angle, text, fontSize, percent, stacked, isWinner }: SliceLabelProps) {
   const [flipped, setFlipped] = useState(() => readsUpsideDown(angle, rotation.get()))
   useMotionValueEvent(rotation, 'change', (value) => setFlipped(readsUpsideDown(angle, value)))
 
   // Flipped, the frame points from the rim to the hub, so the title starts at the rim and the odds end at the hub.
   const rim = flipped ? C - (R - 16) : C + R - 16
   const hub = flipped ? C - (HUB + 8) : C + HUB + 8
+  const pctSize = Math.min(11, fontSize)
+  // Stacked: the two lines are centered on the slice's middle, title above the odds as read.
+  const block = fontSize + 2 + pctSize
+  const titleY = stacked && percent !== null ? C - block / 2 + fontSize / 2 : C
   return (
     <g transform={`rotate(${flipped ? angle + 90 : angle - 90} ${C} ${C})`}>
       <text
         x={rim}
-        y={C}
+        y={titleY}
         textAnchor={flipped ? 'start' : 'end'}
         dominantBaseline="central"
         fontSize={fontSize}
@@ -270,11 +342,12 @@ function SliceLabel({ rotation, angle, text, fontSize, percent, isWinner }: Slic
       </text>
       {percent !== null && (
         <text
-          x={hub}
-          y={C}
-          textAnchor={flipped ? 'end' : 'start'}
+          x={stacked ? rim : hub}
+          y={stacked ? C + block / 2 - pctSize / 2 : C}
+          // Anchored where its line starts: at the rim like the title when stacked, at the hub otherwise.
+          textAnchor={stacked !== flipped ? 'end' : 'start'}
           dominantBaseline="central"
-          fontSize={Math.min(11, fontSize)}
+          fontSize={pctSize}
           className={`font-sans font-medium ${isWinner ? 'fill-ink-950/70' : 'fill-muted'}`}
         >
           {percent}%

@@ -1,4 +1,6 @@
-const COLOR_TOKENS = ['--color-accent', '--color-accent-strong', '--color-fuf', '--color-cookie', '--color-fg']
+// The couple's own colors and screen white: the blue stays the winner's (One Light Source), and the
+// celebration belongs to the two of them. Each person's color is listed twice so the white doesn't wash it out.
+const COLOR_TOKENS = ['--color-fuf', '--color-fuf', '--color-cookie', '--color-cookie', '--color-fg']
 
 function themeColors(): string[] {
   const style = getComputedStyle(document.documentElement)
@@ -17,7 +19,7 @@ export function preloadConfetti(): void {
 }
 
 /**
- * A celebratory burst from both bottom corners in the theme's colors (skipped with reduced motion). It falls
+ * A celebratory burst from both bottom corners in the two people's colors (skipped with reduced motion). It falls
  * behind the page (above the room glow, `body::before`): the solid winner card and wheel hide it, so it
  * fills the room around them and never covers the winner's title or buttons.
  */

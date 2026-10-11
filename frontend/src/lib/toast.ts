@@ -5,13 +5,22 @@ import { useSyncExternalStore } from 'react'
 
 export type ToastKind = 'success' | 'error' | 'info'
 
+/** A button on the toast ("Undo"). Clicking it runs `onClick` and dismisses the toast. */
+export type ToastAction = {
+  label: string
+  onClick: () => void
+}
+
 export type Toast = {
   id: number
   kind: ToastKind
   message: string
+  action?: ToastAction
 }
 
 const DURATION_MS: Record<ToastKind, number> = { success: 3000, info: 4000, error: 6000 }
+/** Toasts with an action stay longer, so there's time to reach the button from the sofa. */
+const ACTION_DURATION_MS = 8000
 const MAX_TOASTS = 4
 
 let toasts: readonly Toast[] = []
@@ -32,26 +41,43 @@ export function dismissToast(id: number): void {
   emit()
 }
 
-function show(kind: ToastKind, message: string): number {
+/** Holds the countdown while the pointer or focus is on the toast, so an action can't vanish while you reach for it. */
+export function pauseToast(id: number): void {
+  clearTimeout(timers.get(id))
+  timers.delete(id)
+}
+
+/** Starts (or restarts, after a pause) the toast's full countdown. */
+export function resumeToast(id: number): void {
+  const toast = toasts.find((t) => t.id === id)
+  if (toast && !timers.has(id)) {
+    const duration = toast.action ? ACTION_DURATION_MS : DURATION_MS[toast.kind]
+    timers.set(
+      id,
+      setTimeout(() => dismissToast(id), duration),
+    )
+  }
+}
+
+type ShowOptions = { action?: ToastAction }
+
+function show(kind: ToastKind, message: string, { action }: ShowOptions = {}): number {
   const id = nextId++
   const kept = toasts.slice(-(MAX_TOASTS - 1))
   for (const dropped of toasts.slice(0, toasts.length - kept.length)) {
     clearTimeout(timers.get(dropped.id))
     timers.delete(dropped.id)
   }
-  toasts = [...kept, { id, kind, message }]
-  timers.set(
-    id,
-    setTimeout(() => dismissToast(id), DURATION_MS[kind]),
-  )
+  toasts = [...kept, { id, kind, message, action }]
+  resumeToast(id)
   emit()
   return id
 }
 
 export const toast = {
-  success: (message: string) => show('success', message),
-  error: (message: string) => show('error', message),
-  info: (message: string) => show('info', message),
+  success: (message: string, options?: ShowOptions) => show('success', message, options),
+  error: (message: string, options?: ShowOptions) => show('error', message, options),
+  info: (message: string, options?: ShowOptions) => show('info', message, options),
 }
 
 function subscribe(listener: () => void): () => void {

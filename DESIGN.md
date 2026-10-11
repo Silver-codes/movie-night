@@ -143,7 +143,7 @@ The interface is used side by side on a laptop or TV, and on a phone as a second
 A cool, desaturated night palette with exactly one blue light source and two personal colors.
 
 ### Primary
-- **Screen Glow Blue** (accent): the TV's glow in a dark room. Primary buttons, the selected nav item, active non-default chips, the chosen pick method's outline, the wheel's winning slice and hub ring (once landed), the winner's poster outline on the podium, focus outlines and text selection. **Screen Glow Bright** (accent-strong) is its hover state. **Screen Glow Haze** (accent-soft, 15% alpha) tints selected backgrounds, icon tiles and badges.
+- **Screen Glow Blue** (accent): the TV's glow in a dark room. Primary buttons, the selected nav item, active non-default chips, the chosen pick method's outline, the wheel's winning slice (once landed), the winner's poster outline on the podium, focus outlines and text selection. **Screen Glow Bright** (accent-strong) is its hover state. **Screen Glow Haze** (accent-soft, 15% alpha) tints selected backgrounds, icon tiles and badges.
 
 ### Secondary
 - **The two people's colors** (`--color-fuf`, `--color-cookie`): pointed at one of six swatches each, chosen by the people in the app: **Lavender** (swatch-lavender, Fuf's default), **Rose** (swatch-rose, Cookie's default), **Mint** (swatch-mint), **Amber** (swatch-amber), **Coral** (swatch-coral), **Sky** (swatch-sky). Used for each person's stars, avatar ring and soft avatar fill (`*-soft`, a 15% `color-mix`), name tags and verdicts. All six are mid-light and readable on ink, and kept away from the accent hue.
@@ -197,7 +197,9 @@ The spacing rhythm follows Tailwind's 4px scale; groups are typically 8–12px a
 
 **The Same Room, Two Screens Rule.** Every screen must work on a laptop or TV for two people sitting back and on a 375px phone. Overlays switch shape (bottom sheet ↔ side panel or centered dialog), not content.
 
-**Stage mode (Pick page).** Once a pick is on screen, the page header shrinks to a back row and the method name, and from `lg` the moment is sized for the couch: the wheel stage breaks out of the column (up to 100rem), the wheel is as tall as the window allows (`max(28rem, 100dvh − 18rem)`), and secondary text is at least 18px, with each person's name and large stars on the winner. The whole wheel, the winner and its actions must fit a 1440×900 screen without scrolling.
+**Stage mode (Pick page).** Once a pick is on screen, the page header shrinks to a back row and the method name, and from `lg` the moment is sized for the couch: the wheel stage breaks out of the column (up to 100rem), the wheel is as tall as the window allows (`max(28rem, 100dvh − 18rem)`), and secondary text is at least 18px, with each person's name and large stars on the winner. The whole wheel (or podium), the winner and its actions must fit a 1440×900 screen without scrolling, and a 1280×800 laptop too: on screens up to 56rem tall the winner's backdrop drops to 22dvh and its genres join the year · runtime line instead of chips. On phones the winner card scrolls up only after a short pause (1.2s), so the landed slice is seen first.
+
+**Choose stage on phones.** The three pick methods are compact tiles in one row (icon over the name), with the chosen method's description under the row, and the sections sit 24px apart, so the filters and the "in the hat" bar fit the first screen at 375×812.
 
 ## Elevation & Depth
 
@@ -248,10 +250,10 @@ Soft, confident and quick to press.
 Sheets that slide in on a spring. The drawer is a bottom sheet (24px top corners, 92% height) on phones and a 30rem right panel on md+, opening on a backdrop image that fades into Velvet. The modal is a bottom sheet on phones and a centered 42rem dialog with 24px corners on md+, with a sticky blurred header. Both trap focus and close on Escape.
 
 ### Spin Wheel (signature)
-An SVG wheel in shades of ink with thin Theater Black dividers; slices are sized by probability. It spins for ~5.8s on a custom ease with synthesized ticks and lands inside the winner's slice, which then fills Screen Glow Blue while the hub ring turns blue with it. Until then nothing on the wheel is blue: the rim bulbs are white at 70% / 30%, the pointer is white with a dark dot. With reduced motion it only glides (0.8s, ease-out).
+An SVG wheel in shades of ink with thin Theater Black dividers; slices are sized by probability. The first spin on the stage takes ~5.8s on a custom ease with synthesized ticks; every respin there takes ~3.4s with fewer turns, and a tap on the wheel or Space/Enter skips any spin with a 0.6s confident ease-out onto the same landing spot ("Tap the wheel to skip" under it). It lands inside the winner's slice, which then fills Screen Glow Blue: the one blue thing on the wheel (the hub ring stays Dim House Light). Until then nothing on the wheel is blue: the rim bulbs are white at 70% / 30%, the pointer is white with a dark dot. The confetti that follows is the two people's colors and Screen White, never the accent: the celebration is theirs, the blue stays the winner's. With reduced motion it only glides (0.8s, ease-out).
 
 ### Top-Rated Podium (signature)
-The top three on hype, revealed on springs: #1 springs in last and bouncier, with ties tagged. The podium is where Top Rated is decided: #1's title, details and the pick actions sit beside it on laptops/TVs (below it on phones), the same pairing as the wheel and its winner card, and confetti falls as #1 lands.
+The top three on hype, revealed on springs: #1 springs in last and bouncier, with ties tagged. The podium is where Top Rated is decided: #1 gets the same winner card as the wheels (backdrop, both people's stars, the pick actions), springing in once #1 has landed, beside the podium on laptops/TVs (below it on phones), and confetti falls as #1 lands. Plinths read "9 hype", titles use the series-short form ("Goblet of Fire"), and places #4+ fold into a "N more in the hat" disclosure so the stage fits 1440×900. Hype is said in words: "9 hype together", "3 hype so far" (one hasn't rated), "No hype yet".
 
 ### Toasts
 Ink-800 cards at 95% with blur, 12px corners and a status icon, at the top on phones and bottom-right on md+.

@@ -14,10 +14,33 @@ type Props = {
   method: PickMethod
   /** What to do next (`PickActions`). */
   actions: ReactNode
+  /** Seconds before the card springs in (the podium lets #1 land first). */
+  delay?: number
+  /** Below `lg` the card sits under the wheel and scrolls into view; the podium is its own reveal, so it opts out. */
+  scrollIntoView?: boolean
+  /** A line under the hype, e.g. how a tie was settled. */
+  note?: ReactNode
 }
 
-/** The wheel's winner: big backdrop, info, both hype stars and what to do next. */
-export function PickWinner({ movie, method, actions }: Props) {
+/** Phones: how long the landed wheel stays in view before the winner card scrolls up. */
+const LANDED_PAUSE_MS = 1200
+const LANDED_PAUSE_REDUCED_MS = 600
+
+/** "9 hype together", or "so far" while one of them hasn't rated it: the plain-words version of `hype_total`. */
+function hypeSummary(movie: Movie): ReactNode {
+  const rated = [movie.fuf_hype, movie.cookie_hype].filter((v) => v !== null).length
+  if (rated === 0) {
+    return 'No hype yet'
+  }
+  return (
+    <>
+      <span className="font-bold text-fg">{movie.hype_total}</span> hype {rated === 2 ? 'together' : 'so far'}
+    </>
+  )
+}
+
+/** Tonight's pick (wheels and Top Rated): big backdrop, info, both hype stars and what to do next. */
+export function PickWinner({ movie, method, actions, delay = 0, scrollIntoView = true, note }: Props) {
   const reduceMotion = useReducedMotion()
   const ref = useRef<HTMLElement>(null)
   const heading = useRef<HTMLHeadingElement>(null)
@@ -26,12 +49,18 @@ export function PickWinner({ movie, method, actions }: Props) {
   // Move focus to the winner (the button that started the pick is gone or disabled by now). Below `lg` the
   // winner sits under the wheel, so bring it into view; on laptops/TVs it's already beside the wheel, and
   // scrolling would push the wheel's top under the nav.
+  // The scroll waits a moment, so the landed (blue) slice and the confetti are seen before the wheel goes up.
   useEffect(() => {
     heading.current?.focus({ preventScroll: true })
-    if (!window.matchMedia('(min-width: 64rem)').matches) {
-      ref.current?.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'nearest' })
+    if (!scrollIntoView || window.matchMedia('(min-width: 64rem)').matches) {
+      return
     }
-  }, [movie.id, reduceMotion])
+    const timer = window.setTimeout(
+      () => ref.current?.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'nearest' }),
+      reduceMotion ? LANDED_PAUSE_REDUCED_MS : LANDED_PAUSE_MS,
+    )
+    return () => window.clearTimeout(timer)
+  }, [movie.id, reduceMotion, scrollIntoView])
 
   return (
     <motion.section
@@ -39,11 +68,11 @@ export function PickWinner({ movie, method, actions }: Props) {
       aria-label="Tonight's pick"
       initial={reduceMotion ? false : { opacity: 0, y: 24, scale: 0.97 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
-      transition={{ type: 'spring', stiffness: 220, damping: 24 }}
+      transition={{ type: 'spring', stiffness: 220, damping: 24, delay: reduceMotion ? 0 : delay }}
       className="scroll-mb-24 overflow-hidden rounded-3xl bg-ink-900 ring-1 ring-ink-700"
     >
       {/* On laptops/TVs the backdrop is capped, so the title and the actions stay on screen. */}
-      <div className="relative aspect-video w-full bg-ink-800 lg:aspect-auto lg:h-[min(24rem,26dvh)]">
+      <div className="relative aspect-video w-full bg-ink-800 lg:aspect-auto lg:h-[min(24rem,26dvh)] lg:[@media(max-height:56rem)]:h-[22dvh]">
         <BackdropImage movie={movie} />
         <div className="absolute inset-0 bg-linear-to-t from-ink-900 via-ink-900/50 to-transparent" />
         <p className="absolute top-4 left-4 rounded-full bg-ink-950/80 px-3 py-1 text-xs font-semibold tracking-wide text-fg/80 uppercase backdrop-blur lg:top-5 lg:left-5 lg:px-4 lg:py-1.5 lg:text-sm">
@@ -69,12 +98,20 @@ export function PickWinner({ movie, method, actions }: Props) {
             >
               {movie.title}
             </h2>
-            {meta && <p className="mt-1 text-muted lg:mt-2 lg:text-xl">{meta}</p>}
+            {meta && (
+              <p className="mt-1 text-muted lg:mt-2 lg:text-xl">
+                {meta}
+                {/* Short laptop screens: the genres join this line, so the card fits the window. */}
+                {movie.genres.length > 0 && (
+                  <span className="hidden lg:[@media(max-height:56rem)]:inline"> · {movie.genres.join(' · ')}</span>
+                )}
+              </p>
+            )}
           </div>
         </header>
 
         {movie.genres.length > 0 && (
-          <ul className="flex flex-wrap gap-1.5" aria-label="Genres">
+          <ul className="flex flex-wrap gap-1.5 lg:[@media(max-height:56rem)]:hidden" aria-label="Genres">
             {movie.genres.map((genre) => (
               <li key={genre} className="rounded-full bg-ink-800 px-2.5 py-1 text-xs text-muted ring-1 ring-ink-700 lg:px-3.5 lg:py-1.5 lg:text-base">
                 {genre}
@@ -92,10 +129,10 @@ export function PickWinner({ movie, method, actions }: Props) {
               size="lg"
             />
           ))}
-          <span className="text-sm text-muted lg:text-lg">
-            Hype total <span className="font-bold text-fg">{movie.hype_total}</span>
-          </span>
+          <span className="text-sm text-muted lg:text-lg">{hypeSummary(movie)}</span>
         </div>
+
+        {note && <p className="-mt-2 text-sm text-muted lg:-mt-3 lg:text-lg">{note}</p>}
 
         {actions}
       </div>

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Link, useSearchParams } from 'react-router'
 import { useMovies, useUpdateMovie } from '../api/movieHooks'
 import { useConfirmPick, useCreatePick } from '../api/pickHooks'
-import type { MovieFilters, PickMethod, PickRequest, PickResult } from '../api/types'
+import type { Movie, MovieFilters, PickMethod, PickRequest, PickResult } from '../api/types'
 import { PRIMARY_BUTTON_CLASS } from '../components/buttonStyles'
 import { EmptyState } from '../components/EmptyState'
 import { ErrorState } from '../components/ErrorState'
@@ -32,6 +32,10 @@ import { toast } from '../lib/toast'
 
 const ALL_WATCHLIST: MovieFilters = { status: 'watchlist' }
 const DEFAULT_METHOD: PickMethod = 'wheel_weighted'
+/** After "Not tonight", the winner stays on screen this long with an Undo before the next pick starts. */
+const RESPIN_DELAY_MS = 1500
+/** How many titles the "Out tonight" line names before it counts the rest. */
+const OUT_TONIGHT_NAMED = 2
 
 const METHOD_ICONS: Record<PickMethod, ReactNode> = {
   top_rated: <TrophyIcon className="size-6" />,
@@ -81,14 +85,37 @@ export function PickPage() {
   /** The wheel slice under the pointer, lit up in the list beside the wheel. */
   const [pointerIndex, setPointerIndex] = useState<number | null>(null)
   const stageRegion = useRef<HTMLDivElement>(null)
-
-  // The button that started the pick is gone; move focus to the wheel (the podium and the winner card
-  // focus the winner's title themselves).
+  /** The pick whose winner was just put on "not tonight", while its Undo is on screen before the next pick. */
+  const [leavingPickId, setLeavingPickId] = useState<string | null>(null)
+  const leaving = useRef<{ timer: number; winner: Movie } | null>(null)
+  const mounted = useRef(true)
+  // The unmount cleanup below needs this render's announceOutTonight (it closes over updateMovie).
+  const announceOnLeave = useRef<(movie: Movie) => void>(() => {})
   useEffect(() => {
-    if (stage.kind === 'wheel') {
+    announceOnLeave.current = announceOutTonight
+  })
+
+  useEffect(() => {
+    mounted.current = true
+    return () => {
+      mounted.current = false
+      // Left the page during the inline Undo: the toast takes it over.
+      if (leaving.current) {
+        window.clearTimeout(leaving.current.timer)
+        announceOnLeave.current(leaving.current.winner)
+        leaving.current = null
+      }
+    }
+  }, [])
+
+  // The button that started the spin ("Spin the wheel", "Spin again") is gone; move focus to the wheel stage, where
+  // Space skips the spin (the podium and the winner card focus the winner's title themselves).
+  const spinningPickId = stage.kind === 'wheel' && !stage.landed ? stage.result.pick_id : null
+  useEffect(() => {
+    if (spinningPickId !== null && (document.activeElement === document.body || document.activeElement === null)) {
       stageRegion.current?.focus({ preventScroll: true })
     }
-  }, [stage.kind])
+  }, [spinningPickId])
 
   // Top rated: confetti once #1 has sprung onto the podium.
   const podiumPickId = stage.kind === 'podium' ? stage.result.pick_id : null
@@ -116,6 +143,10 @@ export function PickPage() {
   const pickableCount = movies.filter((m) => m.is_pickable).length
   // Everything on the watchlist is pickable or skipped tonight, so the rest are the skipped ones.
   const skipped = movies.filter((m) => !m.is_pickable)
+  const shortTitleOf = useMemo(() => {
+    const short = shortTitles(movies.map((m) => m.title))
+    return new Map(movies.map((m, i) => [m.id, short[i]]))
+  }, [movies])
   const hasFilters = maxRuntime !== null || genre !== null
 
   function setParam(key: string, value: string | null) {
@@ -164,16 +195,57 @@ export function PickPage() {
     })
   }
 
+  // mutateAsync, not per-call callbacks: those are skipped once the page unmounts, and the toast's Undo
+  // can be pressed from any page. Failures already show the global error toast.
+  function bringBack(movie: Movie) {
+    updateMovie
+      .mutateAsync({ id: movie.id, update: { skipped_tonight: false } })
+      .then(() => toast.success(`${movie.title} is back in the hat`))
+      .catch(() => {})
+  }
+
+  /** The Undo moves to a toast once the inline one is gone (the next pick started, or they left the stage). */
+  function announceOutTonight(movie: Movie) {
+    toast.info(`${movie.title} is out for tonight`, { action: { label: 'Undo', onClick: () => bringBack(movie) } })
+  }
+
+  /** Ends the inline-Undo moment: `announce` hands the Undo to a toast, otherwise the movie was just brought back. */
+  function endLeaving({ announce }: { announce: boolean }) {
+    if (!leaving.current) {
+      return
+    }
+    window.clearTimeout(leaving.current.timer)
+    if (announce) {
+      announceOutTonight(leaving.current.winner)
+    }
+    leaving.current = null
+    setLeavingPickId(null)
+  }
+
   function onNotTonight(result: PickResult) {
-    updateMovie.mutate(
-      { id: result.winner.id, update: { skipped_tonight: true } },
-      {
-        onSuccess: () => {
-          toast.info(`${result.winner.title} is out for tonight`)
+    const { winner } = result
+    updateMovie
+      .mutateAsync({ id: winner.id, update: { skipped_tonight: true } })
+      .then(() => {
+        if (!mounted.current) {
+          announceOutTonight(winner)
+          return
+        }
+        // The winner stays on screen for a moment with an inline Undo, then the next pick starts.
+        setLeavingPickId(result.pick_id)
+        const timer = window.setTimeout(() => {
+          endLeaving({ announce: true })
           runPick({ method: result.method, max_runtime: maxRuntime ?? undefined, genre: genre ?? undefined })
-        },
-      },
-    )
+        }, RESPIN_DELAY_MS)
+        leaving.current = { timer, winner }
+      })
+      .catch(() => {})
+  }
+
+  /** Inline Undo: the same winner stays, as if "Not tonight" never happened. */
+  function undoNotTonight(result: PickResult) {
+    endLeaving({ announce: false })
+    bringBack(result.winner)
   }
 
   function bringAllBack() {
@@ -192,8 +264,12 @@ export function PickPage() {
     setSound(next)
   }
 
-  const backToChoose = () => setStage({ kind: 'choose' })
-  const busy = createPick.isPending || confirmPick.isPending || updateMovie.isPending
+  const backToChoose = () => {
+    // The movie stays out (that's what they asked for), and no new pick starts.
+    endLeaving({ announce: true })
+    setStage({ kind: 'choose' })
+  }
+  const busy = createPick.isPending || confirmPick.isPending || updateMovie.isPending || leavingPickId !== null
 
   let content: ReactNode
   if (watchlist.isPending) {
@@ -242,7 +318,8 @@ export function PickPage() {
   } else if (stage.kind === 'choose') {
     const isWheel = pickMethodInfo(method).isWheel
     content = (
-      <div className="flex flex-col gap-8">
+      // Phones: tighter sections, so the filters sit above the sticky "in the hat" bar on the first screen.
+      <div className="flex flex-col gap-6 sm:gap-8">
         {toRate.length > 0 && (
           <section aria-label="Waiting for your verdict" className="flex flex-col gap-2">
             {toRate.map((movie) => (
@@ -251,16 +328,22 @@ export function PickPage() {
           </section>
         )}
 
-        <div role="radiogroup" aria-label="How to pick" className="grid gap-3 sm:grid-cols-3">
-          {PICK_METHODS.map((m) => (
-            <PickMethodCard
-              key={m.value}
-              method={m}
-              icon={METHOD_ICONS[m.value]}
-              checked={method === m.value}
-              onSelect={() => setParam('method', m.value === DEFAULT_METHOD ? null : m.value)}
-            />
-          ))}
+        <div className="flex flex-col gap-3">
+          <div role="radiogroup" aria-label="How to pick" className="grid grid-cols-3 gap-2 sm:gap-3">
+            {PICK_METHODS.map((m) => (
+              <PickMethodCard
+                key={m.value}
+                method={m}
+                icon={METHOD_ICONS[m.value]}
+                checked={method === m.value}
+                onSelect={() => setParam('method', m.value === DEFAULT_METHOD ? null : m.value)}
+              />
+            ))}
+          </div>
+          {/* Phones: the tiles only name the methods; the chosen one explains itself here (the radio already says it). */}
+          <p aria-hidden="true" className="text-sm text-muted sm:hidden">
+            {pickMethodInfo(method).tagline}
+          </p>
         </div>
 
         <PickFilters
@@ -274,16 +357,25 @@ export function PickPage() {
         {/* On phones the sticky bar gets a full-width backdrop, so chip rows scrolling under it can't peek out beside it. */}
         <div className="sticky bottom-[calc(5rem+env(safe-area-inset-bottom))] z-10 -mx-4 -mt-6 bg-linear-to-t from-ink-950 from-70% to-transparent px-4 pt-6 pb-2 sm:mx-0 sm:mt-0 sm:bg-none sm:p-0 md:bottom-4">
           <div className="flex flex-col gap-3 rounded-2xl bg-ink-900/90 p-4 ring-1 ring-ink-700 backdrop-blur sm:flex-row sm:items-center">
-            <p className="flex-1 text-sm text-muted" aria-live="polite">
-              {inTheHat > 0 ? (
-                <>
-                  <span className="text-lg font-bold text-fg">{inTheHat}</span> {inTheHat === 1 ? 'movie' : 'movies'} in
-                  the hat
-                </>
-              ) : (
-                'No movie fits these filters.'
+            <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+              <p className="text-sm text-muted" aria-live="polite">
+                {inTheHat > 0 ? (
+                  <>
+                    <span className="text-lg font-bold text-fg">{inTheHat}</span> {inTheHat === 1 ? 'movie' : 'movies'}{' '}
+                    in the hat
+                  </>
+                ) : (
+                  'No movie fits these filters.'
+                )}
+              </p>
+              {skipped.length > 0 && (
+                <OutTonight
+                  titles={skipped.map((m) => shortTitleOf.get(m.id) ?? m.title)}
+                  onBringBack={bringAllBack}
+                  disabled={updateMovie.isPending}
+                />
               )}
-            </p>
+            </div>
             <div className="flex items-center gap-2">
               {isWheel && (
                 <SoundToggle on={sound} onToggle={toggleSound} />
@@ -335,6 +427,7 @@ export function PickPage() {
         onAgain={spinAgain}
         onPickSomethingElse={backToChoose}
         onNotTonight={() => onNotTonight(result)}
+        onUndoNotTonight={leavingPickId === result.pick_id ? () => undoNotTonight(result) : undefined}
         busy={busy}
       />
     )
@@ -381,6 +474,7 @@ export function PickPage() {
               <div className="flex w-full max-w-md items-center justify-center gap-3 lg:max-w-none">
                 {/* Below lg the winner scrolls into view under the wheel and has its own "Spin again". */}
                 {canSpinAgain && <p className="hidden text-muted lg:block lg:text-lg">Tap the wheel to spin again</p>}
+                {!stage.landed && <p className="hidden text-muted lg:block lg:text-lg">Tap the wheel to skip</p>}
                 {!stage.landed && pointerCandidate && (
                   <PointerReadout
                     candidate={pointerCandidate}
@@ -391,6 +485,8 @@ export function PickPage() {
                 )}
                 <SoundToggle on={sound} onToggle={toggleSound} className="size-9 shrink-0 lg:size-11" />
               </div>
+              {/* Phones: the readout has the row, so the skip hint sits under it. */}
+              {!stage.landed && <p className="-mt-1 text-sm text-muted lg:hidden">Tap the wheel to skip</p>}
             </div>
             {/* While it spins: who's on the wheel. Once it lands: the winner. */}
             {stage.landed ? (
@@ -415,5 +511,34 @@ export function PickPage() {
       )}
       {content}
     </>
+  )
+}
+
+/** Under the hat count: which movies "Not tonight" took out, so a slip is visible and one tap undoes it. */
+function OutTonight({
+  titles,
+  onBringBack,
+  disabled,
+}: {
+  titles: string[]
+  onBringBack: () => void
+  disabled: boolean
+}) {
+  const named = titles.slice(0, OUT_TONIGHT_NAMED).join(', ')
+  const more = titles.length - OUT_TONIGHT_NAMED
+  return (
+    <p className="text-sm text-muted">
+      Out tonight: <span className="text-fg/85">{named}</span>
+      {more > 0 && ` +${more}`}
+      <span aria-hidden="true"> · </span>
+      <button
+        type="button"
+        onClick={onBringBack}
+        disabled={disabled}
+        className="-my-1 rounded py-1 font-semibold text-fg underline-offset-4 transition hover:underline disabled:opacity-60"
+      >
+        {titles.length === 1 ? 'Bring it back' : 'Bring them back'}
+      </button>
+    </p>
   )
 }

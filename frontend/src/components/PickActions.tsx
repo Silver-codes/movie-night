@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react'
 import { Link } from 'react-router'
 import { CheckIcon } from './NavIcons'
 
@@ -13,6 +14,8 @@ type Props = {
   onPickSomethingElse: () => void
   /** Puts the winner on "not tonight" and picks again. */
   onNotTonight: () => void
+  /** Set for the moment between "Not tonight" and the new pick: the link becomes an Undo. */
+  onUndoNotTonight?: () => void
   busy: boolean
 }
 
@@ -26,6 +29,7 @@ export function PickActions({
   onAgain,
   onPickSomethingElse,
   onNotTonight,
+  onUndoNotTonight,
   busy,
 }: Props) {
   if (confirmed) {
@@ -77,14 +81,41 @@ export function PickActions({
           </button>
         )}
       </div>
-      <button
-        type="button"
-        onClick={onNotTonight}
-        disabled={busy}
-        className="self-center text-sm text-muted underline-offset-4 transition hover:text-fg hover:underline disabled:opacity-60 lg:text-lg"
-      >
-        Not tonight. Leave it out and pick again
-      </button>
+      {onUndoNotTonight ? (
+        <UndoNotTonight onUndo={onUndoNotTonight} />
+      ) : (
+        <button
+          type="button"
+          onClick={onNotTonight}
+          disabled={busy}
+          // A full-height tap target, set a little apart from "Spin again" so a thumb doesn't slip onto it.
+          className="mt-1 self-center rounded-lg px-3 py-3 text-sm text-muted underline-offset-4 transition hover:text-fg hover:underline disabled:opacity-60 sm:mt-0 sm:py-1 lg:text-lg"
+        >
+          Not tonight. Leave it out and pick again
+        </button>
+      )}
     </div>
+  )
+}
+
+/** Takes the place of the "Not tonight" link (and its focus) until the next pick starts. */
+function UndoNotTonight({ onUndo }: { onUndo: () => void }) {
+  const undo = useRef<HTMLButtonElement>(null)
+  // The link that had focus is gone; keep the keyboard where it was.
+  useEffect(() => {
+    undo.current?.focus({ preventScroll: true })
+  }, [])
+  return (
+    <p className="flex items-center justify-center gap-3 self-center text-sm text-muted lg:text-lg">
+      Out for tonight. Picking again…
+      <button
+        ref={undo}
+        type="button"
+        onClick={onUndo}
+        className="-my-1.5 rounded-lg px-3 py-1.5 font-semibold text-fg ring-1 ring-ink-600 transition hover:bg-ink-800"
+      >
+        Undo
+      </button>
+    </p>
   )
 }
