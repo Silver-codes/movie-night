@@ -125,7 +125,7 @@ export function useSaveMovie() {
     mutationFn: (body: MovieSave) => saveMovie(body),
     onSuccess: (movie) => {
       queryClient.setQueriesData<SearchResult[]>({ queryKey: ['search'] }, (results) =>
-        results?.map((r) => (r.tmdb_id === movie.tmdb_id ? { ...r, already_saved: true } : r)),
+        results?.map((r) => (r.tmdb_id === movie.tmdb_id ? { ...r, already_saved: true, movie_id: movie.id } : r)),
       )
       return queryClient.invalidateQueries({ queryKey: queryKeys.movies.all })
     },

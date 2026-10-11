@@ -1,10 +1,8 @@
 import { motion } from 'motion/react'
-import { useEffect, useRef, useState } from 'react'
-import type { Person, Stars } from '../api/types'
+import { useEffect, useRef } from 'react'
 import { PEOPLE } from '../people'
+import { addLabel, useHypeStars, type HypeStars } from '../lib/hypeStars'
 import { StarRating } from './StarRating'
-
-export type HypeStars = Record<Person, Stars>
 
 type Props = {
   title: string
@@ -19,9 +17,8 @@ type Props = {
  * then one button ("Add unrated" until someone rates). Escape, a click outside or tabbing out closes it.
  */
 export function QuickRatePopover({ title, saving, onSave, onClose }: Props) {
-  const [stars, setStars] = useState<HypeStars>({ fuf: null, cookie: null })
+  const { stars, setStar, anyRated } = useHypeStars()
   const panel = useRef<HTMLDivElement>(null)
-  const anyRated = stars.fuf !== null || stars.cookie !== null
 
   useEffect(() => {
     panel.current?.querySelector<HTMLElement>('[role="radio"][tabindex="0"]')?.focus()
@@ -72,7 +69,7 @@ export function QuickRatePopover({ title, saving, onSave, onClose }: Props) {
             person={person.id}
             size="xs"
             value={stars[person.id]}
-            onChange={(value) => setStars((s) => ({ ...s, [person.id]: value }))}
+            onChange={(value) => setStar(person.id, value)}
           />
         ))}
       </div>
@@ -82,7 +79,7 @@ export function QuickRatePopover({ title, saving, onSave, onClose }: Props) {
         onClick={() => onSave(stars)}
         className="rounded-lg bg-accent px-3 py-2 text-sm font-semibold text-ink-950 transition hover:bg-accent-strong disabled:opacity-60"
       >
-        {saving ? 'Saving…' : anyRated ? 'Save' : 'Add unrated'}
+        {addLabel(saving, anyRated)}
       </button>
     </motion.div>
   )

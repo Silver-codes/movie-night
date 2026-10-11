@@ -91,6 +91,38 @@ export type SearchResult = {
   poster_url: string | null
   tmdb_rating: number | null
   already_saved: boolean
+  /** The saved movie's id (when `already_saved`), so the result opens the watchlist drawer. */
+  movie_id: number | null
+}
+
+/** Where a movie falls in its series, by release date ("film 3 of 8"). */
+export type TmdbCollection = {
+  name: string
+  position: number
+  total: number
+}
+
+/** GET /api/tmdb/movies/{tmdb_id}: live TMDB details for the movie drawer. */
+export type TmdbMovieInfo = {
+  tmdb_id: number
+  title: string
+  year: number | null
+  overview: string | null
+  poster_path: string | null
+  backdrop_path: string | null
+  /** Minutes */
+  runtime: number | null
+  genres: string[]
+  tmdb_rating: number | null
+  tagline: string | null
+  directors: string[]
+  /** Top billed, at most 5. */
+  cast: string[]
+  /** A YouTube link. */
+  trailer_url: string | null
+  /** Age rating: Czech, else US (e.g. "12", "PG-13"). */
+  certification: string | null
+  collection: TmdbCollection | null
 }
 
 export type PickRequest = {

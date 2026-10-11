@@ -2,14 +2,12 @@ import { useState } from 'react'
 import { posterUrl } from '../api/images'
 import { useUpdateMovie } from '../api/movieHooks'
 import type { Movie } from '../api/types'
-import { formatRuntime } from '../lib/format'
 import { pickMethodLabel } from '../lib/pickMethods'
 import { PEOPLE } from '../people'
 import { MarkWatchedModal } from './MarkWatchedModal'
+import { MovieAbout } from './MovieAbout'
+import { GenreList, MovieBackdrop, MovieHeader } from './MovieHeader'
 import { MoveToWatchlistButton } from './MoveToWatchlistButton'
-import { BackdropImage } from './BackdropImage'
-import { PosterImage } from './PosterImage'
-import { RatingBadge } from './RatingBadge'
 import { RemoveMovieButton } from './RemoveMovieButton'
 import { StarRating } from './StarRating'
 import { WatchedDetails } from './WatchedDetails'
@@ -22,30 +20,18 @@ type Props = {
 
 /** Drawer content: backdrop, info, then hype + actions on the watchlist, or verdicts once watched. */
 export function MovieDetails({ movie, onDone }: Props) {
-  const runtime = formatRuntime(movie.runtime)
-
   return (
     <article>
-      <div className="relative aspect-video w-full bg-ink-800">
-        <BackdropImage movie={movie} />
-        <div className="absolute inset-0 bg-linear-to-t from-ink-900 via-ink-900/40 to-transparent" />
-      </div>
+      <MovieBackdrop images={movie} />
 
       <div className="relative -mt-20 flex flex-col gap-6 px-5 pb-[calc(1.5rem+env(safe-area-inset-bottom))] sm:px-6">
-        <header className="flex items-end gap-4">
-          <PosterImage
-            src={posterUrl(movie.poster_path, 'w185')}
-            title={movie.title}
-            className="w-24 shrink-0 shadow-xl shadow-black/60"
-          />
-          <div className="min-w-0 pb-1">
-            <h2 className="text-2xl leading-tight font-semibold break-words">{movie.title}</h2>
-            <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted">
-              {[movie.year, runtime].filter(Boolean).join(' · ')}
-              <RatingBadge rating={movie.tmdb_rating} />
-            </p>
-          </div>
-        </header>
+        <MovieHeader
+          title={movie.title}
+          posterSrc={posterUrl(movie.poster_path, 'w185')}
+          year={movie.year}
+          runtime={movie.runtime}
+          rating={movie.tmdb_rating}
+        />
 
         {movie.awaiting_verdict && movie.confirmed_pick_method && (
           <p className="rounded-xl bg-accent-soft px-4 py-3 text-sm ring-1 ring-accent/40">
@@ -56,20 +42,12 @@ export function MovieDetails({ movie, onDone }: Props) {
           </p>
         )}
 
-        {movie.genres.length > 0 && (
-          <ul className="flex flex-wrap gap-1.5" aria-label="Genres">
-            {movie.genres.map((genre) => (
-              <li key={genre} className="rounded-full bg-ink-800 px-2.5 py-1 text-xs text-muted ring-1 ring-ink-700">
-                {genre}
-              </li>
-            ))}
-          </ul>
-        )}
+        <GenreList genres={movie.genres} />
 
         {movie.status === 'watched' ? (
           <>
             <WatchedDetails key={movie.id} movie={movie} />
-            {movie.overview && <p className="leading-relaxed text-fg/85">{movie.overview}</p>}
+            <MovieAbout tmdbId={movie.tmdb_id} overview={movie.overview} />
             <div className="flex flex-wrap gap-2">
               <MoveToWatchlistButton movie={movie} onMoved={onDone} />
               <RemoveMovieButton movie={movie} onRemoved={onDone} />
@@ -116,7 +94,7 @@ function WatchlistDetails({ movie, onDone }: Props) {
         )}
       </section>
 
-      {movie.overview && <p className="leading-relaxed text-fg/85">{movie.overview}</p>}
+      <MovieAbout tmdbId={movie.tmdb_id} overview={movie.overview} />
 
       <div className="flex flex-col gap-2">
         <label className="flex cursor-pointer items-center justify-between gap-4 rounded-xl bg-ink-800 px-4 py-3 ring-1 ring-ink-700">

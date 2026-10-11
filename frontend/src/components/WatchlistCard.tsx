@@ -4,6 +4,7 @@ import { posterUrl } from '../api/images'
 import type { Movie } from '../api/types'
 import { PEOPLE } from '../people'
 import { PosterImage } from './PosterImage'
+import { RatingBadge } from './RatingBadge'
 import { StarDisplay } from './StarDisplay'
 
 type Props = {
@@ -43,16 +44,8 @@ export const WatchlistCard = memo(function WatchlistCard({ movie, onOpen, priori
             priority={priority}
             className={`shadow-lg shadow-black/40 transition group-hover:shadow-xl group-hover:shadow-black/60 ${movie.skipped_tonight ? 'opacity-50 grayscale' : ''}`}
           />
-          <span
-            title="Hype total"
-            className="absolute top-2 right-2 inline-flex min-w-8 items-center justify-center gap-0.5 rounded-full bg-ink-950/85 px-2 py-0.5 text-sm font-bold text-fg ring-1 ring-white/10"
-          >
-            <span className="sr-only">Hype total </span>
-            {movie.hype_total}
-            <span aria-hidden="true" className="text-xs text-accent">
-              ★
-            </span>
-          </span>
+          {/* The same TMDB badge as on Search; the two people's own hype is under the poster. */}
+          <RatingBadge rating={movie.tmdb_rating} className="absolute top-2 right-2" />
           {movie.skipped_tonight && (
             <span className="absolute inset-x-2 bottom-2 rounded-lg bg-ink-950/85 py-1 text-center text-xs font-semibold text-muted">
               Not tonight

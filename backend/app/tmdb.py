@@ -16,6 +16,12 @@ POSTER_SIZE: Final = "w342"
 REQUEST_TIMEOUT: Final = 10.0
 SEARCH_CACHE_TTL: Final = 300.0
 SEARCH_CACHE_MAX_ENTRIES: Final = 200
+INFO_CACHE_TTL: Final = 3600.0
+INFO_CACHE_MAX_ENTRIES: Final = 200
+CAST_LIMIT: Final = 5
+# Age ratings: Czech first (where the couple lives), then the US one most movies have.
+CERTIFICATION_COUNTRIES: Final = ("CZ", "US")
+YOUTUBE_WATCH_URL: Final = "https://www.youtube.com/watch?v="
 
 
 class TMDBError(Exception):
@@ -51,6 +57,25 @@ class TMDBMovieDetails(BaseModel):
     runtime: int | None
     genres: list[str]
     tmdb_rating: float | None
+
+
+class TMDBCollection(BaseModel):
+    """The series a movie belongs to, and where it falls in it (by release date)."""
+
+    name: str
+    position: int
+    total: int
+
+
+class TMDBMovieInfo(TMDBMovieDetails):
+    """Everything the movie drawer shows: the saved fields plus extras that are only fetched live."""
+
+    tagline: str | None
+    directors: list[str]
+    cast: list[str]
+    trailer_url: str | None
+    certification: str | None
+    collection: TMDBCollection | None
 
 
 def poster_url(path: str | None) -> str | None:
@@ -94,6 +119,53 @@ def _movie_details(data: dict[str, Any]) -> TMDBMovieDetails:
         genres=[genre["name"] for genre in data.get("genres", []) if genre.get("name")],
         tmdb_rating=_rating(data),
     )
+
+
+def _directors(data: dict[str, Any]) -> list[str]:
+    crew = data.get("credits", {}).get("crew", [])
+    return [person["name"] for person in crew if person.get("job") == "Director" and person.get("name")]
+
+
+def _cast(data: dict[str, Any]) -> list[str]:
+    cast = sorted(data.get("credits", {}).get("cast", []), key=lambda person: person.get("order", 999))
+    return [person["name"] for person in cast if person.get("name")][:CAST_LIMIT]
+
+
+def _trailer_url(data: dict[str, Any]) -> str | None:
+    videos = [
+        video
+        for video in data.get("videos", {}).get("results", [])
+        if video.get("site") == "YouTube" and video.get("type") == "Trailer" and video.get("key")
+    ]
+    # Official trailers first; otherwise TMDB's order.
+    videos.sort(key=lambda video: not video.get("official", False))
+    return f"{YOUTUBE_WATCH_URL}{videos[0]['key']}" if videos else None
+
+
+def _certification(data: dict[str, Any]) -> str | None:
+    by_country = {
+        entry.get("iso_3166_1"): entry.get("release_dates", [])
+        for entry in data.get("release_dates", {}).get("results", [])
+    }
+    for country in CERTIFICATION_COUNTRIES:
+        for release in by_country.get(country, []):
+            if certification := (release.get("certification") or "").strip():
+                return certification
+    return None
+
+
+def _collection_position(
+    tmdb_id: int, name: str, collection: dict[str, Any]
+) -> TMDBCollection | None:
+    # Unreleased or undated parts don't count, so "film 3 of 8" matches what's out.
+    parts = sorted(
+        (part for part in collection.get("parts", []) if part.get("release_date")),
+        key=lambda part: part["release_date"],
+    )
+    ids = [part.get("id") for part in parts]
+    if tmdb_id not in ids:
+        return None
+    return TMDBCollection(name=name, position=ids.index(tmdb_id) + 1, total=len(ids))
 
 
 # --- Cache ---
@@ -144,6 +216,10 @@ class TMDBClient:
         self._search_cache: TTLCache[list[TMDBSearchResult]] = TTLCache(
             SEARCH_CACHE_TTL, SEARCH_CACHE_MAX_ENTRIES
         )
+        self._info_cache: TTLCache[TMDBMovieInfo] = TTLCache(INFO_CACHE_TTL, INFO_CACHE_MAX_ENTRIES)
+        self._collection_cache: TTLCache[dict[str, Any]] = TTLCache(
+            INFO_CACHE_TTL, INFO_CACHE_MAX_ENTRIES
+        )
 
     async def aclose(self) -> None:
         await self._http.aclose()
@@ -191,6 +267,44 @@ class TMDBClient:
     async def get_movie_details(self, tmdb_id: int) -> TMDBMovieDetails:
         """Full details for saving a movie (runtime, genres, backdrop)."""
         return _movie_details(await self._get(f"/movie/{tmdb_id}"))
+
+    async def get_movie_info(self, tmdb_id: int) -> TMDBMovieInfo:
+        """Details plus credits, trailer, age rating and series position, for the movie drawer."""
+        key = str(tmdb_id)
+        cached = self._info_cache.get(key)
+        if cached is not None:
+            return cached
+        data = await self._get(
+            f"/movie/{tmdb_id}", params={"append_to_response": "credits,videos,release_dates"}
+        )
+        info = TMDBMovieInfo(
+            **_movie_details(data).model_dump(),
+            tagline=(data.get("tagline") or "").strip() or None,
+            directors=_directors(data),
+            cast=_cast(data),
+            trailer_url=_trailer_url(data),
+            certification=_certification(data),
+            collection=await self._collection(tmdb_id, data.get("belongs_to_collection")),
+        )
+        self._info_cache.set(key, info)
+        return info
+
+    async def _collection(
+        self, tmdb_id: int, belongs_to: dict[str, Any] | None
+    ) -> TMDBCollection | None:
+        if not belongs_to or not belongs_to.get("id"):
+            return None
+        key = str(belongs_to["id"])
+        collection = self._collection_cache.get(key)
+        if collection is None:
+            try:
+                collection = await self._get(f"/collection/{belongs_to['id']}")
+            except TMDBError:
+                # The series line is a nice extra; the rest of the drawer shouldn't fail with it.
+                return None
+            self._collection_cache.set(key, collection)
+        name = belongs_to.get("name") or collection.get("name") or ""
+        return _collection_position(tmdb_id, name, collection) if name else None
 
 
 def get_tmdb(request: Request) -> TMDBClient:

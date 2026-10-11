@@ -1,11 +1,9 @@
-import { useState } from 'react'
 import type { SearchResult } from '../api/types'
-import { PEOPLE } from '../people'
+import { addLabel, useHypeStars, type HypeStars } from '../lib/hypeStars'
+import { HypeItSection } from './HypeIt'
 import { Modal } from './Modal'
 import { PosterImage } from './PosterImage'
-import type { HypeStars } from './QuickRatePopover'
 import { RatingBadge } from './RatingBadge'
-import { StarRating } from './StarRating'
 
 type Props = {
   result: SearchResult
@@ -36,8 +34,7 @@ function QuickRateForm({
   onSave: (stars: HypeStars) => void
   onCancel: () => void
 }) {
-  const [stars, setStars] = useState<HypeStars>({ fuf: null, cookie: null })
-  const anyRated = stars.fuf !== null || stars.cookie !== null
+  const hype = useHypeStars()
 
   return (
     <div className="flex flex-col gap-5 px-5 pt-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))]">
@@ -52,21 +49,7 @@ function QuickRateForm({
         </div>
       </div>
 
-      <section className="flex flex-col gap-3 rounded-2xl bg-ink-950/60 p-4 ring-1 ring-ink-700">
-        <h3 className="font-sans text-sm font-semibold tracking-wide text-muted uppercase">Hype it?</h3>
-        {PEOPLE.map((person) => (
-          <StarRating
-            key={person.id}
-            person={person.id}
-            showName
-            value={stars[person.id]}
-            onChange={(value) => setStars((s) => ({ ...s, [person.id]: value }))}
-          />
-        ))}
-        <p className="text-xs text-faint">
-          {anyRated ? 'Tap a star again to clear it.' : 'Optional: you can rate it later from the watchlist.'}
-        </p>
-      </section>
+      <HypeItSection {...hype} />
 
       <div className="flex gap-2">
         <button
@@ -79,10 +62,10 @@ function QuickRateForm({
         <button
           type="button"
           disabled={saving}
-          onClick={() => onSave(stars)}
+          onClick={() => onSave(hype.stars)}
           className="flex-1 rounded-xl bg-accent px-4 py-3 font-semibold text-ink-950 transition hover:bg-accent-strong disabled:opacity-60"
         >
-          {saving ? 'Saving…' : anyRated ? 'Save' : 'Add unrated'}
+          {addLabel(saving, hype.anyRated)}
         </button>
       </div>
     </div>

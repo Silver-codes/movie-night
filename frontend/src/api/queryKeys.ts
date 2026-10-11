@@ -12,6 +12,7 @@ export const queryKeys = {
     detail: (id: number) => ['movies', 'detail', id] as const,
   },
   search: (q: string) => ['search', q] as const,
+  tmdbInfo: (tmdbId: number) => ['tmdb', 'info', tmdbId] as const,
   history: ['history'] as const,
   people: ['people'] as const,
 }

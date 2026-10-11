@@ -156,6 +156,14 @@ export function ArrowLeftIcon(props: IconProps) {
   )
 }
 
+export function PlayIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M8 5.5v13l10.5-6.5Z" />
+    </Icon>
+  )
+}
+
 export function ChevronDownIcon(props: IconProps) {
   return (
     <Icon {...props}>

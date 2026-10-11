@@ -5,17 +5,20 @@ import { useSearch } from '../api/searchHooks'
 import type { SearchResult } from '../api/types'
 import { EmptyState } from '../components/EmptyState'
 import { ErrorState } from '../components/ErrorState'
+import { MovieDrawer } from '../components/MovieDrawer'
 import { SearchIcon } from '../components/NavIcons'
 import { PageHeader } from '../components/PageHeader'
 import { POSTER_GRID_CLASS } from '../components/posterGrid'
 import { PosterGridSkeleton } from '../components/PosterGridSkeleton'
-import type { HypeStars } from '../components/QuickRatePopover'
+import type { HypeStars } from '../lib/hypeStars'
 import { QuickRateSheet } from '../components/QuickRateSheet'
 import { SearchBar } from '../components/SearchBar'
+import { SearchMovieDrawer } from '../components/SearchMovieDrawer'
 import { SearchResultCard } from '../components/SearchResultCard'
 import { toast } from '../lib/toast'
 import { useDebouncedValue } from '../lib/useDebouncedValue'
 import { useMediaQuery } from '../lib/useMediaQuery'
+import { useMovieParam } from '../lib/useMovieParam'
 
 // The last search, so coming back from another tab shows it again.
 let lastQuery = ''
@@ -55,11 +58,37 @@ export function SearchPage() {
     )
   }
 
-  // Keep the debounced query in the URL (shareable, survives a reload).
+  // Keep the debounced query in the URL (shareable, survives a reload). Only when it changed, and only `q`:
+  // `setParams` changes with every URL change, and opening a drawer (`?tmdb=`) mustn't be undone here.
   useEffect(() => {
     lastQuery = q
-    setParams(q ? { q } : {}, { replace: true })
-  }, [q, setParams])
+    if ((params.get('q') ?? '') === q) {
+      return
+    }
+    setParams(
+      (prev) => {
+        const next = new URLSearchParams(prev)
+        if (q) {
+          next.set('q', q)
+        } else {
+          next.delete('q')
+        }
+        return next
+      },
+      { replace: true },
+    )
+  }, [q, params, setParams])
+
+  // The open result's drawer, in `?tmdb=` (the back button closes it). Which drawer it is gets decided when it
+  // opens: a saved movie gets the watchlist drawer, an unsaved one the add drawer, which then must not turn into
+  // the watchlist one when saving patches `movie_id` in. Kept after closing, so the drawer can animate out.
+  const { openId, openMovie, closeMovie } = useMovieParam('tmdb')
+  const [shown, setShown] = useState<{ result: SearchResult; movieId: number | null } | null>(null)
+  const openResult = openId === null ? undefined : search.data?.find((r) => r.tmdb_id === openId)
+  if (openResult && shown?.result.tmdb_id !== openResult.tmdb_id) {
+    setShown({ result: openResult, movieId: openResult.movie_id ?? null })
+  }
+  const drawerOpen = openId !== null && shown?.result.tmdb_id === openId
 
   let content: ReactNode
   if (q === '') {
@@ -88,6 +117,7 @@ export function SearchPage() {
             result={result}
             overlay={overlay}
             onAddOnPhone={openSheet}
+            onOpen={openMovie}
             priority={index < EAGER_POSTERS}
           />
         ))}
@@ -102,6 +132,12 @@ export function SearchPage() {
         <SearchBar value={text} onChange={setText} busy={search.isFetching} />
         {content}
       </div>
+      <MovieDrawer movieId={drawerOpen && shown.movieId !== null ? shown.movieId : null} onClose={closeMovie} />
+      <SearchMovieDrawer
+        result={shown?.movieId === null ? shown.result : null}
+        open={drawerOpen && shown.movieId === null}
+        onClose={closeMovie}
+      />
       {!overlay && sheetResult && (
         <QuickRateSheet
           result={sheetResult}

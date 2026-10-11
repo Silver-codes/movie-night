@@ -5,13 +5,15 @@ from sqlmodel import Session, col, select
 
 from app.db import get_session
 from app.models import Movie
-from app.tmdb import TMDBClient, TMDBSearchResult, get_tmdb
+from app.tmdb import TMDBClient, TMDBMovieInfo, TMDBSearchResult, get_tmdb
 
 router = APIRouter(tags=["search"])
 
 
 class SearchResult(TMDBSearchResult):
     already_saved: bool
+    # The saved movie's id, so a saved result opens the watchlist drawer.
+    movie_id: int | None
 
 
 @router.get("/search")
@@ -25,8 +27,22 @@ async def search(
     results = await tmdb.search_movies(q)
     # Not cached: a movie saved a moment ago must show up as saved right away.
     ids = [result.tmdb_id for result in results]
-    saved = set(session.exec(select(Movie.tmdb_id).where(col(Movie.tmdb_id).in_(ids))).all())
+    saved = dict(
+        session.exec(select(Movie.tmdb_id, Movie.id).where(col(Movie.tmdb_id).in_(ids))).all()
+    )
     return [
-        SearchResult(**result.model_dump(), already_saved=result.tmdb_id in saved)
+        SearchResult(
+            **result.model_dump(),
+            already_saved=result.tmdb_id in saved,
+            movie_id=saved.get(result.tmdb_id),
+        )
         for result in results
     ]
+
+
+@router.get("/tmdb/movies/{tmdb_id}")
+async def tmdb_movie_info(
+    tmdb_id: int, tmdb: Annotated[TMDBClient, Depends(get_tmdb)]
+) -> TMDBMovieInfo:
+    """Live TMDB details for the movie drawer (cached for an hour): runtime, genres, credits, trailer…"""
+    return await tmdb.get_movie_info(tmdb_id)

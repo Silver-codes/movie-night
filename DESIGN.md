@@ -249,6 +249,14 @@ Soft, confident and quick to press.
 ### Drawer and Modal
 Sheets that slide in on a spring. The drawer is a bottom sheet (24px top corners, 92% height) on phones and a 30rem right panel on md+, opening on a backdrop image that fades into Velvet. The modal is a bottom sheet on phones and a centered 42rem dialog with 24px corners on md+, with a sticky blurred header. Both trap focus and close on Escape.
 
+**The movie drawer** has the same parts wherever it opens:
+- **Header:** backdrop, poster, title, "year · runtime ★ rating", genre chips.
+- **"About" block:** the tagline in italics, the overview, "Director / Starring" as a two-column list, then one line with the age-rating pill ("12+", "All ages", "PG-13"), "Harry Potter Collection · film 3 of 8" and a secondary "Watch trailer" link.
+
+The about block's TMDB extras load live and are simply absent until they arrive. The order follows the job:
+- **Watchlist and History:** the hype stars (or the verdicts) come before the about block.
+- **Search:** "about" comes first, then "Hype it?" and one primary button, "Add unrated" → "Save". You're deciding whether to add the movie. A Search result that's already saved opens the watchlist drawer.
+
 ### Spin Wheel (signature)
 An SVG wheel in shades of ink with thin Theater Black dividers; slices are sized by probability. The first spin on the stage takes ~5.8s on a custom ease with synthesized ticks; every respin there takes ~3.4s with fewer turns, and a tap on the wheel or Space/Enter skips any spin with a 0.6s confident ease-out onto the same landing spot ("Tap the wheel to skip" under it). It lands inside the winner's slice, which then fills Screen Glow Blue: the one blue thing on the wheel (the hub ring stays Dim House Light). Until then nothing on the wheel is blue: the rim bulbs are white at 70% / 30%, the pointer is white with a dark dot. The confetti that follows is the two people's colors and Screen White, never the accent: the celebration is theirs, the blue stays the winner's. With reduced motion it only glides (0.8s, ease-out).
 
