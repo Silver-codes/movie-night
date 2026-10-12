@@ -2,7 +2,7 @@
 
 The user's planned prompts for upcoming steps. If the user says "do the next step" (or names a step), the prompt for it below is the task, together with its open points at the bottom. If the user sends their own prompt for a step, that wins; update this file to match. Don't implement steps ahead of time.
 
-Steps 1–9 (scaffold, models, TMDB/search, movie CRUD + tests, picking/history, frontend shell, Search + Watchlist pages, Pick page, mark-watched + History) are done; see Status in `CLAUDE.md`.
+Steps 1–11 are done; what each one built is in `docs/changelog.md`.
 
 ## Step 5 — Picking and history (backend)
 
