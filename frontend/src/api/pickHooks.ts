@@ -14,7 +14,7 @@ export function useCreatePick() {
 export function useConfirmPick() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: (pickId: string) => confirmPick(pickId),
+    mutationFn: ({ pickId, movieId }: { pickId: string; movieId?: number }) => confirmPick(pickId, movieId),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.movies.all })
       void queryClient.invalidateQueries({ queryKey: queryKeys.history })

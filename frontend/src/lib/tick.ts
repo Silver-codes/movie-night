@@ -33,6 +33,34 @@ export function playTick(): void {
   osc.stop(now + 0.05)
 }
 
+/**
+ * "We're watching this!": a soft two-note theatre chime (the bell before the lights go down), high then low.
+ * Same rules as the tick: only once audio was unlocked, and only when sound is on (the caller checks).
+ */
+export function playChime(): void {
+  if (!context || context.state !== 'running') {
+    return
+  }
+  const start = context.currentTime
+  // E5, then C5 a beat later; each rings out softly.
+  for (const [frequency, offset] of [
+    [659.25, 0],
+    [523.25, 0.32],
+  ] as const) {
+    const at = start + offset
+    const osc = context.createOscillator()
+    const gain = context.createGain()
+    osc.type = 'sine'
+    osc.frequency.setValueAtTime(frequency, at)
+    gain.gain.setValueAtTime(0.0001, at)
+    gain.gain.exponentialRampToValueAtTime(0.09, at + 0.02)
+    gain.gain.exponentialRampToValueAtTime(0.0001, at + 1.4)
+    osc.connect(gain).connect(context.destination)
+    osc.start(at)
+    osc.stop(at + 1.5)
+  }
+}
+
 /** Whether the tick sound is on (default on); remembered per browser. */
 export function loadSoundEnabled(): boolean {
   try {

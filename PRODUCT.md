@@ -20,13 +20,13 @@ Success: picking takes a minute, feels fun and fair to both people, and nobody h
 
 ## Positioning
 
-A private ritual for two specific people, not a movie database or a social app. The **pick** is the heart of it. Saving, hype stars and "Not tonight" exist to feed the pick. History and the "Fuf vs Cookie" stats are a fun extra, not the core job. Every pick method draws only from pickable movies, and the server, not either person, chooses the winner, so the result is neutral.
+A private ritual for two specific people, not a movie database or a social app. The **pick** is the heart of it. Saving, hype stars and "Not tonight" exist to feed the pick. History and the "Fuf vs Cookie" stats are a fun extra, not the core job. Every pick method draws only from pickable movies, and the server, not either person, chooses the winner, so the result is neutral. On Top Rated the ranking is an offer: the couple may take #2, #3 or any lower place instead of #1 (the server checks it was in the pick); a wheel's result stands.
 
 ## Operating Context
 
 - **During the week:** search TMDB, add to the watchlist, hype-rate (either person can rate for both).
 - **Movie night (the main moment):** together in front of a laptop/TV, optionally narrow by max runtime or genre, take movies out with "Not tonight" (expires on its own the next movie night; nights roll over at 06:00), pick by podium or spinning wheel, confirm "We're watching this!".
-- **After watching:** mark watched with a date, both verdicts and notes; fill in later from the drawer if needed. A confirmed pick still on the watchlist nudges "Rate it after watching".
+- **After watching:** mark watched with a date, both verdicts and notes; fill in later from the drawer if needed. A confirmed pick still on the watchlist nudges "Rate it after watching"; "Didn't watch it" on that nudge (or "Pick something else" right after confirming) takes the confirmation back, and the movie simply stays on the watchlist.
 - Runs locally: `npm run dev` on the computer, or `npm start` to serve on the LAN for a phone.
 
 ## Capabilities and Constraints
@@ -56,7 +56,7 @@ A private ritual for two specific people, not a movie database or a social app. 
 ## Product Principles
 
 1. **The pick comes first.** Movie night in front of a shared screen is the moment the product exists for; everything else feeds or follows it.
-2. **Fair and neutral.** Both people have equal weight and equal power to edit; the server chooses, and only pickable movies take part.
+2. **Fair and neutral.** Both people have equal weight and equal power to edit; the server chooses (on Top Rated they may take another place in its ranking), and only pickable movies take part.
 3. **Two people, not users.** Names, emoji and colors belong to the couple and stay customizable; no account, sharing or social layer.
 4. **Low effort, high fun.** Adding and rating takes a tap or two; playful moments (wheel, confetti, sound) celebrate the decision without slowing it down.
 

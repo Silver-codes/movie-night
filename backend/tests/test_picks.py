@@ -277,6 +277,55 @@ def test_confirm_pick(client: TestClient, make_movie: MakeMovie, seed_rng: SeedR
     assert read["awaiting_verdict"] is True
 
 
+def test_confirm_top_rated_can_take_another_place(
+    client: TestClient, make_movie: MakeMovie, seed_rng: SeedRng, session: Session
+) -> None:
+    make_movie(title="First", fuf_hype=5, cookie_hype=5)
+    second = make_movie(title="Second", fuf_hype=3, cookie_hype=3)
+    body = _pick(client, "top_rated")
+    assert body["winner"]["title"] == "First"
+
+    response = client.post(f"/api/picks/{body['pick_id']}/confirm", json={"movie_id": second.id})
+
+    assert response.status_code == 200
+    assert response.json()["movie_id"] == second.id
+    assert [pick.movie_id for pick in session.exec(select(Pick)).all()] == [second.id]
+    read = client.get(f"/api/movies/{second.id}").json()
+    assert read["confirmed_pick_method"] == "top_rated"
+    assert read["awaiting_verdict"] is True
+
+
+def test_confirm_with_a_movie_outside_the_pick_is_400(
+    client: TestClient, make_movie: MakeMovie, seed_rng: SeedRng, session: Session
+) -> None:
+    make_movie(title="Short", runtime=90)
+    too_long = make_movie(title="Long", runtime=200)
+    pick_id = _pick(client, "top_rated", max_runtime=120)["pick_id"]
+
+    response = client.post(f"/api/picks/{pick_id}/confirm", json={"movie_id": too_long.id})
+
+    assert response.status_code == 400
+    assert response.json() == {"detail": "That movie isn't in this pick"}
+    assert session.exec(select(Pick)).all() == []
+
+
+def test_confirm_wheel_only_takes_the_winner(
+    client: TestClient, make_movie: MakeMovie, seed_rng: SeedRng, session: Session
+) -> None:
+    make_movie(title="A")
+    make_movie(title="B")
+    body = _pick(client, "wheel_random")
+    loser = next(c["movie"]["id"] for c in body["candidates"] if c["movie"]["id"] != body["winner"]["id"])
+
+    response = client.post(f"/api/picks/{body['pick_id']}/confirm", json={"movie_id": loser})
+
+    assert response.status_code == 400
+    # Naming the winner itself is fine.
+    winner = client.post(f"/api/picks/{body['pick_id']}/confirm", json={"movie_id": body["winner"]["id"]})
+    assert winner.status_code == 200
+    assert winner.json()["movie_id"] == body["winner"]["id"]
+
+
 def test_confirmed_pick_method_is_the_latest_confirmed(
     client: TestClient, make_movie: MakeMovie, seed_rng: SeedRng
 ) -> None:
@@ -308,6 +357,64 @@ def test_confirm_after_the_movie_was_deleted_is_404(
 
     assert response.status_code == 404
     assert response.json() == {"detail": "Movie not found"}
+
+
+# --- cancelling a confirmed pick ("didn't watch it after all") ---
+
+
+def test_cancel_pick_undoes_the_confirm(
+    client: TestClient, make_movie: MakeMovie, seed_rng: SeedRng, session: Session
+) -> None:
+    movie = make_movie(fuf_hype=4)
+    client.post(f"/api/picks/{_pick(client, 'top_rated')['pick_id']}/confirm")
+
+    response = client.delete(f"/api/movies/{movie.id}/pick")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["awaiting_verdict"] is False
+    assert body["confirmed_pick_method"] is None
+    # Still on the watchlist, hype kept, in the hat again.
+    assert body["status"] == "watchlist"
+    assert body["fuf_hype"] == 4
+    assert body["is_pickable"] is True
+    assert session.exec(select(Pick)).all() == []
+
+
+def test_cancel_pick_removes_only_the_latest(
+    client: TestClient, make_movie: MakeMovie, seed_rng: SeedRng, session: Session
+) -> None:
+    first = make_movie(title="First", fuf_hype=5, cookie_hype=5)
+    second = make_movie(title="Second", fuf_hype=1)
+    client.post(f"/api/picks/{_pick(client, 'top_rated')['pick_id']}/confirm")
+    # The Top Rated place they chose instead of #1 is the one cancelled.
+    other = _pick(client, "top_rated")["pick_id"]
+    client.post(f"/api/picks/{other}/confirm", json={"movie_id": second.id})
+
+    assert client.delete(f"/api/movies/{second.id}/pick").status_code == 200
+
+    assert [pick.movie_id for pick in session.exec(select(Pick)).all()] == [first.id]
+    assert client.get(f"/api/movies/{first.id}").json()["awaiting_verdict"] is True
+
+
+def test_cancel_pick_without_a_waiting_pick_is_409(
+    client: TestClient, make_movie: MakeMovie, seed_rng: SeedRng, session: Session
+) -> None:
+    never_picked = make_movie(title="Never picked")
+    watched = make_movie(title="Watched")
+    client.post(f"/api/picks/{_pick(client, 'top_rated')['pick_id']}/confirm")
+    client.post(f"/api/movies/{watched.id}/watched", json={"fuf_verdict": 4})
+
+    for movie in (never_picked, watched):
+        response = client.delete(f"/api/movies/{movie.id}/pick")
+        assert response.status_code == 409
+        assert response.json() == {"detail": "This movie isn't waiting to be watched"}
+    # A watched movie keeps its pick: History shows how it was chosen.
+    assert len(session.exec(select(Pick)).all()) == 1
+
+
+def test_cancel_pick_unknown_movie_is_404(client: TestClient) -> None:
+    assert client.delete("/api/movies/999/pick").status_code == 404
 
 
 def test_old_unconfirmed_picks_are_deleted_on_startup(engine: Engine, session: Session, make_movie: MakeMovie) -> None:

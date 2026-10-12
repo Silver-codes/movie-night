@@ -98,21 +98,21 @@ class Movie(MovieBase, table=True):
         genres = func.json_each(cls.genres).table_valued("value")
         return exists().select_from(genres).where(func.lower(column("value")) == genre.casefold())
 
-    def _latest_confirmed_pick(self) -> "Pick | None":
+    def latest_confirmed_pick(self) -> "Pick | None":
         confirmed = [pick for pick in self.picks if pick.confirmed]
         return max(confirmed, key=lambda pick: (pick.picked_at, pick.id or 0), default=None)
 
     @property
     def confirmed_pick_method(self) -> PickMethod | None:
         """How the movie was picked the last time someone said "we're watching this"."""
-        pick = self._latest_confirmed_pick()
+        pick = self.latest_confirmed_pick()
         return pick.method if pick else None
 
     @property
     def awaiting_verdict(self) -> bool:
         """On the watchlist with a confirmed pick from a later movie night than its last watch:
         "rate it after watching". A movie moved back to the watchlist isn't awaiting until it's picked again."""
-        pick = self._latest_confirmed_pick()
+        pick = self.latest_confirmed_pick()
         if self.status != MovieStatus.watchlist or pick is None:
             return False
         # SQLite gives back naive datetimes; they're UTC.
@@ -219,6 +219,13 @@ class PickRequest(SQLModel):
     method: PickMethod
     max_runtime: int | None = Field(default=None, ge=1, description="Minutes; unknown runtimes are excluded")
     genre: str | None = None
+
+
+class PickConfirm(SQLModel):
+    """Optional POST /picks/{id}/confirm body. Top Rated lets them take any place in the ranking, not just #1;
+    a wheel's result is the wheel's."""
+
+    movie_id: int | None = None
 
 
 class PickRead(PickBase):

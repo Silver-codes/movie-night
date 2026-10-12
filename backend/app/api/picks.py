@@ -16,6 +16,7 @@ from app.models import (
     MovieRead,
     Pick,
     PickCandidate,
+    PickConfirm,
     PickMethod,
     PickRead,
     PickRequest,
@@ -38,6 +39,8 @@ def get_rng() -> random.Random:
 class PendingPick:
     movie_id: int
     method: PickMethod
+    # What confirm may save instead of the winner: every candidate on Top Rated, only the winner on a wheel.
+    choosable_ids: frozenset[int] = frozenset()
     # Set once confirmed, so confirming again returns the same saved pick.
     saved_id: int | None = None
 
@@ -51,10 +54,10 @@ class PendingPicks:
         self._limit = limit
         self._lock = threading.Lock()
 
-    def add(self, movie_id: int, method: PickMethod) -> str:
+    def add(self, movie_id: int, method: PickMethod, choosable_ids: frozenset[int] = frozenset()) -> str:
         token = uuid.uuid4().hex
         with self._lock:
-            self._picks[token] = PendingPick(movie_id, method)
+            self._picks[token] = PendingPick(movie_id, method, choosable_ids | {movie_id})
             while len(self._picks) > self._limit:
                 self._picks.popitem(last=False)
         return token
@@ -137,8 +140,14 @@ def create_pick(
 
     winner, candidates = choose(body.method, movies, rng)
     assert winner.id is not None
+    # Top Rated is a ranking they may take any place from; a wheel's result stands.
+    choosable = (
+        frozenset(movie.id for movie, _, _ in candidates if movie.id is not None)
+        if body.method == PickMethod.top_rated
+        else frozenset()
+    )
     return PickResult(
-        pick_id=pending.add(winner.id, body.method),
+        pick_id=pending.add(winner.id, body.method, choosable),
         method=body.method,
         winner=MovieRead.model_validate(winner),
         candidates=[
@@ -149,16 +158,22 @@ def create_pick(
 
 
 @router.post("/{pick_id}/confirm")
-def confirm_pick(pick_id: str, session: SessionDep, pending: PendingDep) -> PickRead:
-    """Save a pick shown by POST /picks ("we're watching this"). Confirming twice is fine."""
+def confirm_pick(
+    pick_id: str, session: SessionDep, pending: PendingDep, body: PickConfirm | None = None
+) -> PickRead:
+    """Save a pick shown by POST /picks ("we're watching this"): the winner, or on Top Rated another place
+    (`movie_id`). Confirming twice is fine."""
     entry = pending.get(pick_id)
     if entry is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "This pick has expired. Pick again.")
     if entry.saved_id is not None and (saved := session.get(Pick, entry.saved_id)) is not None:
         return PickRead.model_validate(saved)
-    if session.get(Movie, entry.movie_id) is None:
+    movie_id = body.movie_id if body is not None and body.movie_id is not None else entry.movie_id
+    if movie_id not in entry.choosable_ids:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "That movie isn't in this pick")
+    if session.get(Movie, movie_id) is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Movie not found")
-    pick = Pick(movie_id=entry.movie_id, method=entry.method, confirmed=True)
+    pick = Pick(movie_id=movie_id, method=entry.method, confirmed=True)
     session.add(pick)
     session.commit()
     session.refresh(pick)

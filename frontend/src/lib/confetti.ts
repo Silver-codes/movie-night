@@ -7,8 +7,15 @@ function themeColors(): string[] {
   return COLOR_TOKENS.map((token) => style.getPropertyValue(token).trim()).filter(Boolean)
 }
 
-function loadConfetti() {
+let loaded: ReturnType<typeof importConfetti> | null = null
+
+function importConfetti() {
   return import('canvas-confetti')
+}
+
+function loadConfetti() {
+  loaded ??= importConfetti()
+  return loaded
 }
 
 /** Start downloading the confetti chunk (e.g. when a spin starts), so the burst isn't late. */
@@ -34,4 +41,10 @@ export function fireConfetti(): void {
     void confetti({ ...shared, angle: 60, origin: { x: 0, y: 0.9 } })
     void confetti({ ...shared, angle: 120, origin: { x: 1, y: 0.9 } })
   })
+}
+
+/** Clears confetti still falling (back to choosing, or off the page): the celebration belongs to that pick. */
+export function stopConfetti(): void {
+  // Nothing to clear (and nothing to download) if it never ran.
+  void loaded?.then(({ default: confetti }) => confetti.reset())
 }

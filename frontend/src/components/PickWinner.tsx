@@ -1,9 +1,8 @@
 import { motion, useReducedMotion } from 'motion/react'
 import { useEffect, useRef, type ReactNode } from 'react'
 import { posterUrl } from '../api/images'
-import type { Movie, PickMethod } from '../api/types'
+import type { Movie } from '../api/types'
 import { formatRuntime } from '../lib/format'
-import { pickMethodLabel } from '../lib/pickMethods'
 import { PEOPLE } from '../people'
 import { BackdropImage } from './BackdropImage'
 import { PosterImage } from './PosterImage'
@@ -11,13 +10,18 @@ import { StarDisplay } from './StarDisplay'
 
 type Props = {
   movie: Movie
-  method: PickMethod
   /** What to do next (`PickActions`). */
   actions: ReactNode
   /** Seconds before the card springs in (the podium lets #1 land first). */
   delay?: number
   /** Below `lg` the card sits under the wheel and scrolls into view; the podium is its own reveal, so it opts out. */
   scrollIntoView?: boolean
+  /** Moves focus to the title when the card appears; off when they swap places on Top Rated (focus stays there). */
+  takeFocus?: boolean
+  /** Confirmed ("We're watching this!"): the screen comes alive, the backdrop slowly brightens and pushes in. */
+  spotlight?: boolean
+  /** Top Rated: #1's poster is right there on the podium, so the card leaves its own out. */
+  showPoster?: boolean
   /** A line under the hype, e.g. how a tie was settled. */
   note?: ReactNode
 }
@@ -40,7 +44,16 @@ function hypeSummary(movie: Movie): ReactNode {
 }
 
 /** Tonight's pick (wheels and Top Rated): big backdrop, info, both hype stars and what to do next. */
-export function PickWinner({ movie, method, actions, delay = 0, scrollIntoView = true, note }: Props) {
+export function PickWinner({
+  movie,
+  actions,
+  delay = 0,
+  scrollIntoView = true,
+  takeFocus = true,
+  spotlight = false,
+  showPoster = true,
+  note,
+}: Props) {
   const reduceMotion = useReducedMotion()
   const ref = useRef<HTMLElement>(null)
   const heading = useRef<HTMLHeadingElement>(null)
@@ -51,7 +64,9 @@ export function PickWinner({ movie, method, actions, delay = 0, scrollIntoView =
   // scrolling would push the wheel's top under the nav.
   // The scroll waits a moment, so the landed (blue) slice and the confetti are seen before the wheel goes up.
   useEffect(() => {
-    heading.current?.focus({ preventScroll: true })
+    if (takeFocus) {
+      heading.current?.focus({ preventScroll: true })
+    }
     if (!scrollIntoView || window.matchMedia('(min-width: 64rem)').matches) {
       return
     }
@@ -60,7 +75,7 @@ export function PickWinner({ movie, method, actions, delay = 0, scrollIntoView =
       reduceMotion ? LANDED_PAUSE_REDUCED_MS : LANDED_PAUSE_MS,
     )
     return () => window.clearTimeout(timer)
-  }, [movie.id, reduceMotion, scrollIntoView])
+  }, [movie.id, reduceMotion, scrollIntoView, takeFocus])
 
   return (
     <motion.section
@@ -72,22 +87,27 @@ export function PickWinner({ movie, method, actions, delay = 0, scrollIntoView =
       className="scroll-mb-24 overflow-hidden rounded-3xl bg-ink-900 ring-1 ring-ink-700"
     >
       {/* On laptops/TVs the backdrop is capped, so the title and the actions stay on screen. */}
-      <div className="relative aspect-video w-full bg-ink-800 lg:aspect-auto lg:h-[min(24rem,26dvh)] lg:[@media(max-height:56rem)]:h-[22dvh]">
-        <BackdropImage movie={movie} />
+      <div className="relative aspect-video w-full overflow-hidden bg-ink-800 lg:aspect-auto lg:h-[min(24rem,26dvh)] lg:[@media(max-height:56rem)]:h-[22dvh]">
+        <div
+          className={`absolute inset-0 transition-[filter,scale] duration-[1600ms] ease-out motion-reduce:transition-none ${
+            spotlight ? 'scale-[1.04] brightness-[1.2]' : ''
+          }`}
+        >
+          <BackdropImage movie={movie} />
+        </div>
         <div className="absolute inset-0 bg-linear-to-t from-ink-900 via-ink-900/50 to-transparent" />
-        <p className="absolute top-4 left-4 rounded-full bg-ink-950/80 px-3 py-1 text-xs font-semibold tracking-wide text-fg/80 uppercase backdrop-blur lg:top-5 lg:left-5 lg:px-4 lg:py-1.5 lg:text-sm">
-          {pickMethodLabel(method)} picked
-        </p>
       </div>
 
       <div className="relative -mt-24 flex flex-col gap-5 px-5 pb-5 sm:px-6 sm:pb-6 lg:-mt-32 lg:gap-6 lg:px-8 lg:pb-8">
         <header className="flex items-end gap-4">
-          <PosterImage
-            src={posterUrl(movie.poster_path, 'w185')}
-            title={movie.title}
-            decorative
-            className="w-24 shrink-0 shadow-xl shadow-black/60 sm:w-28 lg:w-32 xl:w-36"
-          />
+          {showPoster && (
+            <PosterImage
+              src={posterUrl(movie.poster_path, 'w185')}
+              title={movie.title}
+              decorative
+              className="w-24 shrink-0 shadow-xl shadow-black/60 sm:w-28 lg:w-32 xl:w-36"
+            />
+          )}
           <div className="min-w-0 pb-1">
             <h2
               ref={heading}
@@ -120,7 +140,9 @@ export function PickWinner({ movie, method, actions, delay = 0, scrollIntoView =
           </ul>
         )}
 
-        <div className="flex flex-wrap items-center gap-x-6 gap-y-3 lg:gap-x-8">
+        {/* Once decided (spotlight), the hype steps back on laptops/TVs: the debate is over, and the news below
+            must fit the window with the wheel or podium. */}
+        <div className={`flex flex-wrap items-center gap-x-6 gap-y-3 lg:gap-x-8 ${spotlight ? 'lg:hidden' : ''}`}>
           {PEOPLE.map((person) => (
             <StarDisplay
               key={person.id}
@@ -132,7 +154,7 @@ export function PickWinner({ movie, method, actions, delay = 0, scrollIntoView =
           <span className="text-sm text-muted lg:text-lg">{hypeSummary(movie)}</span>
         </div>
 
-        {note && <p className="-mt-2 text-sm text-muted lg:-mt-3 lg:text-lg">{note}</p>}
+        {note && <p className={`-mt-2 text-sm text-muted lg:-mt-3 lg:text-lg ${spotlight ? 'lg:hidden' : ''}`}>{note}</p>}
 
         {actions}
       </div>

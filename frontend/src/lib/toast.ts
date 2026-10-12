@@ -1,4 +1,4 @@
-import { useSyncExternalStore } from 'react'
+import { useEffect, useSyncExternalStore } from 'react'
 
 // A tiny toast store that lives outside React, so anything (e.g. the QueryClient's
 // global error handler) can call `toast.error(...)`. `<Toaster />` renders it.
@@ -87,4 +87,29 @@ function subscribe(listener: () => void): () => void {
 
 export function useToasts(): readonly Toast[] {
   return useSyncExternalStore(subscribe, () => toasts)
+}
+
+/** How many mounted screens want phone toasts at the bottom (a counter, so two screens can't undo each other). */
+let bottomRequests = 0
+
+/**
+ * Phones show toasts at the top, except while a screen asks for them at the bottom: the Pick stage, where the top
+ * of the screen is the wheel's pointer.
+ */
+export function useToastsAtBottomOnPhones(active: boolean): void {
+  useEffect(() => {
+    if (!active) {
+      return
+    }
+    bottomRequests++
+    emit()
+    return () => {
+      bottomRequests--
+      emit()
+    }
+  }, [active])
+}
+
+export function useToastsAtBottom(): boolean {
+  return useSyncExternalStore(subscribe, () => bottomRequests > 0)
 }

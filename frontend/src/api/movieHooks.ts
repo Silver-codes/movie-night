@@ -1,5 +1,5 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
-import { deleteMovie, fetchMovie, fetchMovies, markWatched, saveMovie, updateMovie } from './movies'
+import { cancelPick, deleteMovie, fetchMovie, fetchMovies, markWatched, saveMovie, updateMovie } from './movies'
 import { queryKeys } from './queryKeys'
 import type { Movie, MovieFilters, MovieSave, MovieUpdate, MovieWatched, SearchResult } from './types'
 
@@ -156,6 +156,18 @@ export function useMarkWatched() {
       queryClient.setQueryData(queryKeys.movies.detail(movie.id), movie)
       void queryClient.invalidateQueries({ queryKey: ['movies', 'list'] })
       void queryClient.invalidateQueries({ queryKey: queryKeys.history })
+    },
+  })
+}
+
+/** "Didn't watch it after all": the confirmed pick goes, the movie stays on the watchlist (see `cancelPick`). */
+export function useCancelPick() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (id: number) => cancelPick(id),
+    onSuccess: (movie) => {
+      queryClient.setQueryData(queryKeys.movies.detail(movie.id), movie)
+      void queryClient.invalidateQueries({ queryKey: ['movies', 'list'] })
     },
   })
 }

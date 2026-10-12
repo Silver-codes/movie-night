@@ -25,3 +25,11 @@ export function markWatched(id: number, body: MovieWatched = {}): Promise<Movie>
 export function deleteMovie(id: number): Promise<void> {
   return apiFetch<void>(`/api/movies/${id}`, { method: 'DELETE' })
 }
+
+/**
+ * Undoes "We're watching this!" for a movie they didn't watch: removes its latest confirmed pick (409 unless it's
+ * awaiting a verdict). It stays on the watchlist, pickable, with its hype.
+ */
+export function cancelPick(id: number): Promise<Movie> {
+  return apiFetch<Movie>(`/api/movies/${id}/pick`, { method: 'DELETE' })
+}

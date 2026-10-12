@@ -1,5 +1,5 @@
-import { useCallback } from 'react'
-import { useLocation, useNavigate, useSearchParams } from 'react-router'
+import { useCallback, useRef } from 'react'
+import { useNavigate, useSearchParams } from 'react-router'
 
 /**
  * The movie open in the detail drawer, kept in `?movie=` (or another `param`, e.g. Search's `?tmdb=`) so the
@@ -8,7 +8,6 @@ import { useLocation, useNavigate, useSearchParams } from 'react-router'
  */
 export function useMovieParam(param = 'movie') {
   const [params, setParams] = useSearchParams()
-  const location = useLocation()
   const navigate = useNavigate()
   const openId = Number(params.get(param)) || null
 
@@ -23,9 +22,21 @@ export function useMovieParam(param = 'movie') {
     [navigate, param],
   )
 
-  const fromDrawerPush = (location.state as { drawer?: boolean } | null)?.drawer === true
+  // The history entry a "back" was already sent from, so a second close can't go back past the page.
+  const closingEntry = useRef<string | null>(null)
+  // Reads the live URL and history entry, not this render's: the drawer's backdrop keeps taking clicks while it
+  // fades out, with the onClose from when it was open, so a double-click calls this twice.
   const closeMovie = useCallback(() => {
-    if (fromDrawerPush) {
+    if (!new URLSearchParams(window.location.search).has(param)) {
+      return // already closed
+    }
+    // React Router keeps the entry's `state` under `usr`, next to its `key`.
+    const entry = window.history.state as { key?: string; usr?: { drawer?: boolean } } | null
+    if (entry?.usr?.drawer === true) {
+      if (closingEntry.current === entry.key) {
+        return // the back from this entry is on its way
+      }
+      closingEntry.current = entry.key ?? null
       void navigate(-1)
     } else {
       setParams(
@@ -37,7 +48,7 @@ export function useMovieParam(param = 'movie') {
         { replace: true },
       )
     }
-  }, [fromDrawerPush, navigate, param, setParams])
+  }, [navigate, param, setParams])
 
   return { openId, openMovie, closeMovie }
 }

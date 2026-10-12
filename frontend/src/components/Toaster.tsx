@@ -1,5 +1,13 @@
 import type { FocusEvent } from 'react'
-import { dismissToast, pauseToast, resumeToast, useToasts, type Toast, type ToastKind } from '../lib/toast'
+import {
+  dismissToast,
+  pauseToast,
+  resumeToast,
+  useToasts,
+  useToastsAtBottom,
+  type Toast,
+  type ToastKind,
+} from '../lib/toast'
 import { CloseIcon } from './NavIcons'
 
 // The kind shows as a small tinted badge in front of the message (not as a colored side border).
@@ -9,13 +17,22 @@ const KIND_STYLES: Record<ToastKind, { badge: string; icon: string }> = {
   info: { badge: 'bg-ink-600 text-fg', icon: '★' },
 }
 
-/** Renders the toast store: at the top on phones (clear of the tab bar and sticky action bars), bottom-right on desktop. */
+/**
+ * Renders the toast store: bottom-right on desktop. On phones at the top (clear of the tab bar and sticky action
+ * bars), or just above the tab bar while the Pick stage keeps the top for the wheel.
+ */
 export function Toaster() {
   const toasts = useToasts()
+  const atBottom = useToastsAtBottom()
+  const phonePlacement = atBottom
+    ? 'bottom-[calc(5rem+env(safe-area-inset-bottom))]'
+    : 'top-[calc(0.75rem+env(safe-area-inset-top))]'
   return (
     <div
       aria-live="polite"
-      className="pointer-events-none fixed inset-x-0 top-[calc(0.75rem+env(safe-area-inset-top))] z-[60] flex flex-col items-center gap-2 px-4 md:inset-x-auto md:top-auto md:right-6 md:bottom-6 md:items-end"
+      aria-label="Notifications"
+      role="region"
+      className={`pointer-events-none fixed inset-x-0 ${phonePlacement} z-[60] flex flex-col items-center gap-2 px-4 md:inset-x-auto md:top-auto md:right-6 md:bottom-6 md:items-end`}
     >
       {toasts.map((t) => (
         <ToastCard key={t.id} toast={t} />
@@ -39,8 +56,8 @@ function ToastCard({ toast }: { toast: Toast }) {
   }
 
   return (
+    // No role of its own: the stack is the one live region, so each toast is read once.
     <div
-      role={kind === 'error' ? 'alert' : 'status'}
       onPointerEnter={() => pauseToast(id)}
       onPointerLeave={(e) => resumeUnlessFocused(e.currentTarget)}
       onFocus={() => pauseToast(id)}

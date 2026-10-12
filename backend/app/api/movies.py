@@ -136,6 +136,21 @@ def mark_watched(movie_id: int, body: MovieWatched, session: SessionDep) -> Movi
     return _save(session, movie)
 
 
+@router.delete("/{movie_id}/pick")
+def cancel_pick(movie_id: int, session: SessionDep) -> MovieRead:
+    """Undo "we're watching this!" for a movie they didn't watch after all: its latest confirmed pick goes, so the
+    "rate it after watching" reminder does too. The movie stays on the watchlist with its hype, pickable as before.
+    Only while it's awaiting a verdict: a watched movie's pick is part of its history."""
+    movie = _get_movie_or_404(session, movie_id)
+    pick = movie.latest_confirmed_pick()
+    if pick is None or not movie.awaiting_verdict:
+        raise HTTPException(status.HTTP_409_CONFLICT, "This movie isn't waiting to be watched")
+    session.delete(pick)
+    session.commit()
+    session.refresh(movie)
+    return MovieRead.model_validate(movie)
+
+
 @router.delete("/{movie_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_movie(movie_id: int, session: SessionDep) -> Response:
     session.delete(_get_movie_or_404(session, movie_id))
