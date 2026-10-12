@@ -26,21 +26,28 @@ export function RateReminder({ movie }: { movie: Movie }) {
     <div className="group relative flex items-center gap-3 rounded-2xl bg-ink-900 p-3 pr-4 ring-1 ring-ink-700 outline-offset-2 outline-accent transition has-[a:focus-visible]:outline-2 has-[a:hover]:bg-ink-800 has-[a:hover]:ring-ink-600">
       <PosterImage src={posterUrl(movie.poster_path, 'w185')} title={movie.title} decorative compact className="w-10 shrink-0 rounded-md!" />
       <span className="min-w-0 flex-1">
+        {/* One line everywhere: on phones the reminder must stay a slim row, so the filters keep the first screen
+            (the poster names the movie too). */}
         <Link
           to={`/watchlist?movie=${movie.id}`}
-          // Phones: two lines, since the actions beside it take room; one line from sm.
-          className="line-clamp-2 leading-snug font-semibold outline-none after:absolute after:inset-0 after:rounded-2xl sm:line-clamp-1"
+          title={movie.title}
+          className="block truncate leading-snug font-semibold outline-none after:absolute after:inset-0 after:rounded-2xl"
         >
           {movie.title}
         </Link>
-        <span className="block text-sm text-muted">
-          {movie.confirmed_pick_method && `${pickMethodLabel(movie.confirmed_pick_method)} pick · `}
+        <span className="block truncate text-sm text-muted">
+          {movie.confirmed_pick_method && (
+            <span className="hidden sm:inline">{pickMethodLabel(movie.confirmed_pick_method)} pick · </span>
+          )}
           Rate it after watching
         </span>
       </span>
-      {/* Phones: stacked, so the title keeps its room. */}
-      <span className="flex shrink-0 flex-col items-end gap-1 sm:flex-row-reverse sm:items-center sm:gap-5">
-        <span aria-hidden="true" className="text-sm font-semibold text-muted transition group-has-[a:hover]:text-fg">
+      {/* Phones: the row itself says "Rate it after watching" and opens the movie, so only "Didn't watch it" sits here. */}
+      <span className="flex shrink-0 items-center gap-5 sm:flex-row-reverse">
+        <span
+          aria-hidden="true"
+          className="hidden text-sm font-semibold text-muted transition group-has-[a:hover]:text-fg sm:inline"
+        >
           Rate →
         </span>
         <button
@@ -48,7 +55,8 @@ export function RateReminder({ movie }: { movie: Movie }) {
           onClick={didntWatch}
           disabled={cancelPick.isPending}
           aria-label={`Didn't watch ${movie.title}`}
-          className="relative z-10 -my-1.5 rounded-lg py-1.5 text-sm text-muted underline-offset-4 transition hover:text-fg hover:underline disabled:opacity-60"
+          // A thumb-sized target on phones without making the row taller.
+          className="relative z-10 -my-3 rounded-lg py-3 text-sm sm:-my-1.5 sm:py-1.5 text-muted underline-offset-4 transition hover:text-fg hover:underline disabled:opacity-60"
         >
           {cancelPick.isPending ? 'Removing…' : "Didn't watch it"}
         </button>

@@ -140,9 +140,9 @@ export function PickWinner({
           </ul>
         )}
 
-        {/* Once decided (spotlight), the hype steps back on laptops/TVs: the debate is over, and the news below
-            must fit the window with the wheel or podium. */}
-        <div className={`flex flex-wrap items-center gap-x-6 gap-y-3 lg:gap-x-8 ${spotlight ? 'lg:hidden' : ''}`}>
+        {/* Once decided (spotlight), the hype steps back: the debate is over, and the news below must fit the
+            window with the wheel or podium (on phones, the screen above the tab bar). */}
+        <div className={`flex flex-wrap items-center gap-x-6 gap-y-3 lg:gap-x-8 ${spotlight ? 'hidden' : ''}`}>
           {PEOPLE.map((person) => (
             <StarDisplay
               key={person.id}
@@ -154,7 +154,7 @@ export function PickWinner({
           <span className="text-sm text-muted lg:text-lg">{hypeSummary(movie)}</span>
         </div>
 
-        {note && <p className={`-mt-2 text-sm text-muted lg:-mt-3 lg:text-lg ${spotlight ? 'lg:hidden' : ''}`}>{note}</p>}
+        {note && <p className={`-mt-2 text-sm text-muted lg:-mt-3 lg:text-lg ${spotlight ? 'hidden' : ''}`}>{note}</p>}
 
         {actions}
       </div>

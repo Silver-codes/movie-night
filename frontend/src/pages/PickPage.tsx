@@ -6,7 +6,7 @@ import { useConfirmPick, useCreatePick } from '../api/pickHooks'
 import type { Movie, MovieFilters, PickMethod, PickRequest, PickResult } from '../api/types'
 import { PRIMARY_BUTTON_CLASS, primaryButtonClass } from '../components/buttonStyles'
 import { EmptyState } from '../components/EmptyState'
-import { DIMMED_CLASS, LIGHTS_DOWN_CLASS } from '../components/lightsDown'
+import { DIMMED_CLASS, LIGHTS_DOWN_CLASS, RAISE_ON_REACH_CLASS } from '../components/lightsDown'
 import { ErrorState } from '../components/ErrorState'
 import {
   ArrowLeftIcon,
@@ -29,6 +29,7 @@ import { PointerReadout, WheelLegend } from '../components/WheelLegend'
 import { fireConfetti, preloadConfetti, stopConfetti } from '../lib/confetti'
 import { PICK_METHODS, pickMethodInfo, RUNTIME_LIMITS, type RuntimeLimit } from '../lib/pickMethods'
 import { loadSoundEnabled, playChime, saveSoundEnabled, unlockAudio } from '../lib/tick'
+import { useMediaQuery } from '../lib/useMediaQuery'
 import { shortTitles } from '../lib/wheel'
 import { dismissToast, toast, useToastsAtBottomOnPhones } from '../lib/toast'
 
@@ -132,6 +133,7 @@ export function PickPage() {
   // tonight") would play off-screen: bring the stage's top back into view first. Laptops/TVs see the whole stage.
   const stagePickId = stage.kind === 'choose' ? null : stage.result.pick_id
   const reduceMotion = useReducedMotion()
+  const remindersAfterFilters = !useMediaQuery('(min-width: 40rem)')
   useEffect(() => {
     const region = stageRegion.current
     if (stagePickId === null || !region || window.matchMedia('(min-width: 64rem)').matches) {
@@ -144,10 +146,18 @@ export function PickPage() {
   }, [stagePickId, reduceMotion])
 
   // Back to choosing (or off the page): confetti still falling from the last pick goes with it.
+  // Back from the stage on purpose ("Change how we pick", "Pick something else"): the button they used is gone, so
+  // focus goes to the chosen method, where they'd pick again, instead of falling to the top of the page.
   const choosing = stage.kind === 'choose'
+  const focusMethodOnChoose = useRef(false)
   useEffect(() => {
-    if (choosing) {
-      stopConfetti()
+    if (!choosing) {
+      return
+    }
+    stopConfetti()
+    if (focusMethodOnChoose.current) {
+      focusMethodOnChoose.current = false
+      document.querySelector<HTMLInputElement>('input[name="pick-method"]:checked')?.focus({ preventScroll: true })
     }
   }, [choosing])
   useEffect(() => stopConfetti, [])
@@ -227,7 +237,8 @@ export function PickPage() {
   }
 
   /** `movie` is the winner, or on Top Rated the place they chose instead. */
-  // No toast: the winner card itself turns into the news ("Lights down…", a live status), and the stage dims around it.
+  // No toast: the winner card itself turns into the news ("Lights down…", focused for the keyboard and screen
+  // readers), and the stage dims around it.
   function onConfirm(result: PickResult, movie: Movie) {
     const movieId = movie.id === result.winner.id ? undefined : movie.id
     // The theatre chime only where the sound toggle is on screen (the wheels); the click allows audio to start.
@@ -240,6 +251,8 @@ export function PickPage() {
       {
         onSuccess: () => {
           setConfirmedPick({ pickId: result.pick_id, movie })
+          // The landing's confetti was for the result; once it's decided the room goes quiet.
+          stopConfetti()
           if (chime) {
             playChime()
           }
@@ -325,6 +338,7 @@ export function PickPage() {
   const backToChoose = () => {
     // The movie stays out (that's what they asked for), and no new pick starts.
     endLeaving({ announce: true })
+    focusMethodOnChoose.current = true
     setStage({ kind: 'choose' })
   }
 
@@ -340,6 +354,7 @@ export function PickPage() {
       onSuccess: () => {
         setConfirmedPick(null)
         toast.info(`${movie.title} isn't tonight's pick anymore`)
+        focusMethodOnChoose.current = true
         setStage({ kind: 'choose' })
       },
     })
@@ -397,16 +412,17 @@ export function PickPage() {
     )
   } else if (stage.kind === 'choose') {
     const isWheel = pickMethodInfo(method).isWheel
+    const reminders = toRate.length > 0 && (
+      <section aria-label="Waiting for your verdict" className="flex flex-col gap-2">
+        {toRate.map((movie) => (
+          <RateReminder key={movie.id} movie={movie} />
+        ))}
+      </section>
+    )
     content = (
       // Phones: tighter sections, so the filters sit above the sticky "in the hat" bar on the first screen.
       <div className="flex flex-col gap-6 sm:gap-8">
-        {toRate.length > 0 && (
-          <section aria-label="Waiting for your verdict" className="flex flex-col gap-2">
-            {toRate.map((movie) => (
-              <RateReminder key={movie.id} movie={movie} />
-            ))}
-          </section>
-        )}
+        {!remindersAfterFilters && reminders}
 
         <div className="flex flex-col gap-3">
           <div role="radiogroup" aria-label="How to pick" className="grid grid-cols-3 gap-2 sm:gap-3">
@@ -433,6 +449,9 @@ export function PickPage() {
           maxRuntime={maxRuntime}
           onMaxRuntimeChange={(minutes) => setParam('max', minutes === null ? null : String(minutes))}
         />
+
+        {/* Phones: the pick comes first, so "rate it" reminders wait just past the filters (they'd push them under the bar). */}
+        {remindersAfterFilters && reminders}
 
         {/* On phones the sticky bar gets a full-width backdrop, so chip rows scrolling under it can't peek out beside it. */}
         <div className="sticky bottom-[calc(5rem+env(safe-area-inset-bottom))] z-10 -mx-4 -mt-6 bg-linear-to-t from-ink-950 from-70% to-transparent px-4 pt-6 pb-2 sm:mx-0 sm:mt-0 sm:bg-none sm:p-0 md:bottom-4">
@@ -528,7 +547,10 @@ export function PickPage() {
         aria-label={pickMethodInfo(result.method).label}
         className={`flex scroll-mt-[calc(5rem+env(safe-area-inset-top))] flex-col gap-6 outline-none ${STAGE_BREAKOUT_CLASS}`}
       >
-        <div className="flex items-center justify-between gap-4">
+        {/* The house lights go down here too once it's decided; only the chosen movie stays lit. */}
+        <div
+          className={`flex items-center justify-between gap-4 ${LIGHTS_DOWN_CLASS} ${confirmed ? `${DIMMED_CLASS} ${RAISE_ON_REACH_CLASS}` : ''}`}
+        >
           <button
             type="button"
             onClick={backToChoose}
@@ -606,7 +628,12 @@ export function PickPage() {
         // The page title stays for screen readers and as the focus fallback.
         <h1 className="sr-only">What are we watching?</h1>
       ) : (
-        <PageHeader title="What are we watching?" subtitle="Go with the top rated, or let the wheel decide." />
+        // Phones: the chosen method's tagline under the tiles says it, and the filters need the room.
+        <PageHeader
+          title="What are we watching?"
+          subtitle="Go with the top rated, or let the wheel decide."
+          subtitleFromSm
+        />
       )}
       {content}
     </>

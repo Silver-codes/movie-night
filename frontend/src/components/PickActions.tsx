@@ -1,5 +1,5 @@
 import { motion, useReducedMotion } from 'motion/react'
-import { useEffect, useRef } from 'react'
+import { useEffect, useId, useRef } from 'react'
 import { Link } from 'react-router'
 import { usePeople } from '../people'
 import { primaryButtonClass, secondaryButtonClass } from './buttonStyles'
@@ -37,6 +37,18 @@ export function PickActions({
   onUndoNotTonight,
   busy,
 }: Props) {
+  const root = useRef<HTMLDivElement>(null)
+  // Undo was pressed: it's gone, and the buttons stay disabled while the movie is brought back, so focus goes to the
+  // card's title (where it lands for every new pick) instead of falling to the page.
+  const refocusAfterUndo = useRef(false)
+  const undoing = onUndoNotTonight !== undefined
+  useEffect(() => {
+    if (!undoing && refocusAfterUndo.current) {
+      refocusAfterUndo.current = false
+      root.current?.closest('section')?.querySelector<HTMLElement>('h2[tabindex]')?.focus({ preventScroll: true })
+    }
+  }, [undoing])
+
   if (confirmed) {
     return (
       <Decided movieId={movieId} onPickSomethingElse={onPickSomethingElse} cancelling={cancelling} busy={busy} />
@@ -44,7 +56,7 @@ export function PickActions({
   }
 
   return (
-    <div className="flex flex-col gap-3">
+    <div ref={root} className="flex flex-col gap-3">
       <div className="flex flex-col gap-2 sm:flex-row">
         <button
           type="button"
@@ -66,7 +78,12 @@ export function PickActions({
         )}
       </div>
       {onUndoNotTonight ? (
-        <UndoNotTonight onUndo={onUndoNotTonight} />
+        <UndoNotTonight
+          onUndo={() => {
+            refocusAfterUndo.current = true
+            onUndoNotTonight()
+          }}
+        />
       ) : (
         <button
           type="button"
@@ -99,29 +116,49 @@ function Decided({
 }) {
   const reduceMotion = useReducedMotion()
   const [first, second] = usePeople()
-  const heading = useRef<HTMLParagraphElement>(null)
-  // The button that confirmed is gone; keep the keyboard (and the screen reader) on the news.
+  const root = useRef<HTMLDivElement>(null)
+  const news = useRef<HTMLDivElement>(null)
+  const headingId = useId()
+  const namesId = useId()
+  // The button that confirmed is gone; keep the keyboard (and the screen reader) on the news. Focus alone says it
+  // (no live region as well, or it would be read twice): the group is named by the headline, described by the names.
+  // Below lg the card sits under the wheel, so the news (and "Pick something else") is brought clear of the
+  // tab bar once the card has settled into its decided shape. `nearest` leaves a card that's already in view alone.
   useEffect(() => {
-    heading.current?.focus({ preventScroll: true })
-  }, [])
+    news.current?.focus({ preventScroll: true })
+    if (window.matchMedia('(min-width: 64rem)').matches) {
+      return
+    }
+    const frame = window.requestAnimationFrame(() =>
+      root.current?.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'nearest' }),
+    )
+    return () => window.cancelAnimationFrame(frame)
+  }, [reduceMotion])
 
+  // No box of its own: the news is written straight onto the winner card, under a hairline, as the card's last word.
   return (
     <motion.div
-      role="status"
-      initial={reduceMotion ? false : { opacity: 0, y: 12, scale: 0.97 }}
-      animate={{ opacity: 1, y: 0, scale: 1 }}
+      ref={root}
+      initial={reduceMotion ? false : { opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
       transition={{ type: 'spring', stiffness: 240, damping: 22 }}
-      className="flex flex-col gap-4 rounded-2xl bg-ink-800 p-5 ring-1 ring-ink-600 lg:gap-5 lg:p-6"
+      className="flex scroll-mb-[calc(5.5rem+env(safe-area-inset-bottom))] flex-col gap-4 border-t border-ink-700 pt-5 md:scroll-mb-6 lg:gap-5 lg:pt-6"
     >
-      <div className="flex flex-col gap-1.5 lg:gap-2">
+      <div
+        ref={news}
+        role="group"
+        tabIndex={-1}
+        aria-labelledby={headingId}
+        aria-describedby={namesId}
+        className="flex flex-col gap-1.5 outline-none lg:gap-2"
+      >
         <p
-          ref={heading}
-          tabIndex={-1}
-          className="font-display text-3xl leading-tight font-semibold tracking-tight text-balance outline-none xl:[@media(min-height:56rem)]:text-4xl"
+          id={headingId}
+          className="font-display text-3xl leading-tight font-semibold tracking-tight text-balance xl:[@media(min-height:56rem)]:text-4xl"
         >
           Lights down. Enjoy the movie! 🍿
         </p>
-        <p className="text-muted lg:text-xl">
+        <p id={namesId} className="text-muted lg:text-xl">
           It's decided,{' '}
           <span className={`font-semibold ${first.textClass}`}>
             {first.emoji}&nbsp;{first.name}

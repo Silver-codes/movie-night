@@ -8,7 +8,7 @@ import type { Movie } from '../api/types'
  */
 export function BackdropImage({ movie }: { movie: Pick<Movie, 'backdrop_path' | 'poster_path'> }) {
   const backdrop = backdropUrl(movie.backdrop_path)
-  const poster = posterUrl(movie.poster_path, 'w342')
+  const poster = posterUrl(movie.poster_path, 'w500')
   // Which URLs failed, so a different movie (new URLs) gets a fresh try.
   const [failed, setFailed] = useState<ReadonlySet<string>>(new Set())
   const fail = (url: string) => setFailed((prev) => new Set(prev).add(url))
@@ -30,7 +30,8 @@ export function BackdropImage({ movie }: { movie: Pick<Movie, 'backdrop_path' | 
         alt=""
         decoding="async"
         onError={() => fail(poster)}
-        className="size-full scale-125 object-cover opacity-60 blur-2xl saturate-150"
+        // Out of focus, not melted: the poster's shapes still read (a heavy blur turns dark posters into a grey smudge).
+        className="size-full scale-110 object-cover object-[center_30%] opacity-70 blur-lg saturate-150"
       />
     )
   } else {

@@ -140,7 +140,8 @@ export function TopRatedPodium({ candidates, winner, selectedId, onSelect, locke
                   <div className="flex w-full min-w-0 flex-col items-center gap-1 text-center">
                     <p
                       title={candidate.movie.title}
-                      className={`line-clamp-2 leading-snug font-semibold ${first ? 'text-base lg:text-xl' : 'text-sm lg:text-lg'}`}
+                      // Phones: three narrow lines fit a whole title, where two cut it mid-word.
+                      className={`line-clamp-3 leading-snug font-semibold sm:line-clamp-2 ${first ? 'text-base lg:text-xl' : 'text-sm lg:text-lg'}`}
                     >
                       {titles[i]}
                     </p>
@@ -229,7 +230,8 @@ export function TopRatedPodium({ candidates, winner, selectedId, onSelect, locke
           delay={switched ? 0 : PODIUM_LANDED_MS / 1000}
           scrollIntoView={false}
           takeFocus={!switched}
-          showPoster={false}
+          // The poster is right there on the podium, unless the card has no backdrop to show: then it carries it.
+          showPoster={!selected.backdrop_path}
           spotlight={decided}
           note={
             tiedCount > 1 && selected.id === winner.id
