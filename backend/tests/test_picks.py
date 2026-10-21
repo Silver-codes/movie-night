@@ -1,5 +1,5 @@
 import random
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from collections import Counter
 from collections.abc import Callable, Iterator
 from typing import Any
@@ -180,6 +180,65 @@ def test_only_pickable_movies_are_candidates(
         body = _pick(client, method.value)
         assert [c["movie"]["title"] for c in body["candidates"]] == ["Pickable"]
         assert body["winner"]["title"] == "Pickable"
+
+
+def test_a_pick_waiting_for_its_verdict_is_out_of_the_hat(
+    client: TestClient, make_movie: MakeMovie, seed_rng: SeedRng
+) -> None:
+    tonight = make_movie(title="Tonight", fuf_hype=5)
+    make_movie(title="Other")
+    client.post(f"/api/picks/{_pick(client, 'top_rated')['pick_id']}/confirm")
+
+    read = client.get(f"/api/movies/{tonight.id}").json()
+    assert (read["awaiting_verdict"], read["is_pickable"]) == (True, False)
+    for method in PickMethod:
+        assert [c["movie"]["title"] for c in _pick(client, method.value)["candidates"]] == ["Other"]
+
+    # "Didn't watch it" puts it back in the hat.
+    assert client.delete(f"/api/movies/{tonight.id}/pick").json()["is_pickable"] is True
+    assert len(_pick(client, "wheel_random")["candidates"]) == 2
+
+
+def test_picked_at_is_the_latest_confirmed_pick_in_utc(
+    client: TestClient, make_movie: MakeMovie, seed_rng: SeedRng
+) -> None:
+    movie = make_movie()
+    assert client.get(f"/api/movies/{movie.id}").json()["picked_at"] is None
+    before = datetime.now(UTC)
+    client.post(f"/api/picks/{_pick(client, 'wheel_random')['pick_id']}/confirm")
+
+    picked_at = datetime.fromisoformat(client.get(f"/api/movies/{movie.id}").json()["picked_at"])
+    assert picked_at.utcoffset() == timedelta(0)
+    assert before - timedelta(seconds=1) <= picked_at <= datetime.now(UTC)
+
+
+def test_awaiting_verdict_sql_matches_python_around_the_rollover(session: Session, make_movie: MakeMovie) -> None:
+    night = date(2026, 10, 20)
+    # Local pick times either side of 06:00 on the next morning, against a watch on `night`.
+    local_times = [
+        datetime(2026, 10, 20, 21, 0),
+        datetime(2026, 10, 21, 5, 59),
+        datetime(2026, 10, 21, 6, 0),
+        datetime(2026, 10, 21, 23, 30),
+    ]
+    movies: list[Movie] = []
+    for local in local_times:
+        for watched_on in (None, night):
+            movie = make_movie(watched_on=watched_on)
+            assert movie.id is not None
+            picked_at = local.astimezone().astimezone(UTC)
+            session.add(Pick(movie_id=movie.id, method=PickMethod.wheel_random, picked_at=picked_at))
+            movies.append(movie)
+    session.commit()
+
+    in_sql = set(session.exec(select(Movie.id).where(Movie.awaiting_verdict_filter())).all())
+    for movie in movies:
+        session.refresh(movie)
+    in_python = {movie.id for movie in movies if movie.awaiting_verdict}
+
+    assert in_sql == in_python
+    # Never watched: always awaiting. Watched on `night`: only picks from 06:00 the next morning on.
+    assert len(in_python) == len(local_times) + 2
 
 
 def test_genre_filter(client: TestClient, make_movie: MakeMovie, seed_rng: SeedRng) -> None:

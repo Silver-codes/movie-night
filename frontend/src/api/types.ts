@@ -36,8 +36,10 @@ export type Movie = {
   added_at: string
   /** Latest confirmed pick; with status "watchlist" it means "rate it after watching". */
   confirmed_pick_method: PickMethod | null
-  /** A confirmed pick still to be watched and rated ("rate it after watching"). */
+  /** A confirmed pick still to be watched and rated ("rate it after watching"); it's out of the hat meanwhile. */
   awaiting_verdict: boolean
+  /** When the latest confirmed pick was made (UTC ISO timestamp). */
+  picked_at: string | null
   /** Sum of both hype stars, nulls as 0. */
   hype_total: number
   skipped_tonight: boolean

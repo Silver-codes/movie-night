@@ -3,7 +3,7 @@ from enum import Enum
 from typing import Annotated, Final, Literal, Self
 
 from pydantic import StringConstraints, computed_field, model_validator
-from sqlalchemy import JSON, CheckConstraint, Column, ColumnElement, and_, column, exists, func, or_
+from sqlalchemy import JSON, CheckConstraint, Column, ColumnElement, and_, column, exists, func, not_, or_
 from sqlmodel import Field, Relationship, SQLModel, col
 
 PEOPLE: Final = ["fuf", "cookie"]
@@ -39,9 +39,10 @@ class PickMethod(str, Enum):
 # --- Movie ---
 
 
-def is_pickable(status: MovieStatus, skipped_on: date | None) -> bool:
-    """Single rule for every pick method: only unwatched movies nobody skipped tonight."""
-    return status == MovieStatus.watchlist and skipped_on != movie_night_date()
+def is_pickable(status: MovieStatus, skipped_on: date | None, awaiting_verdict: bool) -> bool:
+    """Single rule for every pick method: only unwatched movies nobody skipped tonight, and not one that's already
+    been picked and is still waiting for its verdict (it's back in the hat once rated or "didn't watch it")."""
+    return status == MovieStatus.watchlist and skipped_on != movie_night_date() and not awaiting_verdict
 
 
 class MovieBase(SQLModel):
@@ -90,6 +91,23 @@ class Movie(MovieBase, table=True):
         return and_(
             col(cls.status) == MovieStatus.watchlist,
             or_(skipped_on.is_(None), skipped_on != movie_night_date()),
+            not_(cls.awaiting_verdict_filter()),
+        )
+
+    @classmethod
+    def awaiting_verdict_filter(cls) -> ColumnElement[bool]:
+        """SQL version of `awaiting_verdict`. Some confirmed pick is from a later movie night than the last watch
+        exactly when the latest one is. `picked_at` is stored as naive UTC; SQLite's `localtime` uses the same
+        local time as `movie_night_date()`."""
+        picked_on = func.date(col(Pick.picked_at), "localtime", f"-{NIGHT_ROLLOVER_HOUR} hours")
+        watched_on = col(cls.watched_on)
+        return and_(
+            col(cls.status) == MovieStatus.watchlist,
+            exists().where(
+                col(Pick.movie_id) == col(cls.id),
+                col(Pick.confirmed),
+                or_(watched_on.is_(None), picked_on > watched_on),
+            ),
         )
 
     @classmethod
@@ -109,14 +127,21 @@ class Movie(MovieBase, table=True):
         return pick.method if pick else None
 
     @property
+    def picked_at(self) -> datetime | None:
+        """When the latest confirmed pick was made, in UTC (newest reminders first, and "tonight's pick")."""
+        pick = self.latest_confirmed_pick()
+        if pick is None:
+            return None
+        # SQLite gives back naive datetimes; they're UTC.
+        return pick.picked_at if pick.picked_at.tzinfo else pick.picked_at.replace(tzinfo=UTC)
+
+    @property
     def awaiting_verdict(self) -> bool:
         """On the watchlist with a confirmed pick from a later movie night than its last watch:
         "rate it after watching". A movie moved back to the watchlist isn't awaiting until it's picked again."""
-        pick = self.latest_confirmed_pick()
-        if self.status != MovieStatus.watchlist or pick is None:
+        picked_at = self.picked_at
+        if self.status != MovieStatus.watchlist or picked_at is None:
             return False
-        # SQLite gives back naive datetimes; they're UTC.
-        picked_at = pick.picked_at if pick.picked_at.tzinfo else pick.picked_at.replace(tzinfo=UTC)
         picked_on = movie_night_date(picked_at.astimezone().replace(tzinfo=None))
         return self.watched_on is None or picked_on > self.watched_on
 
@@ -178,8 +203,10 @@ class MovieRead(MovieBase):
     skipped_on: date | None = Field(default=None, exclude=True)
     # How the latest confirmed pick was made (History badge).
     confirmed_pick_method: PickMethod | None = None
-    # A confirmed pick that still needs watching and rating ("rate it after watching").
+    # A confirmed pick that still needs watching and rating ("rate it after watching"); not pickable meanwhile.
     awaiting_verdict: bool = False
+    # When the latest confirmed pick was made (UTC).
+    picked_at: datetime | None = None
 
     @computed_field  # type: ignore[prop-decorator]
     @property
@@ -194,7 +221,7 @@ class MovieRead(MovieBase):
     @computed_field  # type: ignore[prop-decorator]
     @property
     def is_pickable(self) -> bool:
-        return is_pickable(self.status, self.skipped_on)
+        return is_pickable(self.status, self.skipped_on, self.awaiting_verdict)
 
 
 # --- Pick ---

@@ -45,7 +45,7 @@ export function useMovie(id: number | null, placeholder?: Movie) {
 function applyUpdate(movie: Movie, update: MovieUpdate): Movie {
   const next: Movie = { ...movie, ...update, status: update.status ?? movie.status }
   next.hype_total = (next.fuf_hype ?? 0) + (next.cookie_hype ?? 0)
-  next.is_pickable = next.status === 'watchlist' && !next.skipped_tonight
+  next.is_pickable = next.status === 'watchlist' && !next.skipped_tonight && !next.awaiting_verdict
   return next
 }
 
@@ -166,7 +166,8 @@ export function useCancelPick() {
   return useMutation({
     mutationFn: (id: number) => cancelPick(id),
     onSuccess: (movie) => {
-      queryClient.setQueryData(queryKeys.movies.detail(movie.id), movie)
+      // Into the lists right away, not only after the refetch: Pick must not show it as tonight's pick meanwhile.
+      patchMovieInCaches(queryClient, movie.id, () => movie)
       void queryClient.invalidateQueries({ queryKey: ['movies', 'list'] })
     },
   })

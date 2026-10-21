@@ -10,7 +10,7 @@ import { PosterImage } from './PosterImage'
  * "You picked X, rate it after watching": for a confirmed pick that's still on the watchlist. The row opens the
  * movie to rate it; "Didn't watch it" takes the pick back instead, and the movie stays on the watchlist.
  */
-export function RateReminder({ movie }: { movie: Movie }) {
+export function RateReminder({ movie, tonight = false }: { movie: Movie; tonight?: boolean }) {
   const cancelPick = useCancelPick()
 
   // mutateAsync: the row is gone once the pick is, so its own callbacks wouldn't run. Failures show the global toast.
@@ -31,15 +31,21 @@ export function RateReminder({ movie }: { movie: Movie }) {
         <Link
           to={`/watchlist?movie=${movie.id}`}
           title={movie.title}
+          aria-label={`Rate ${movie.title}${tonight ? ", tonight's pick" : ''}`}
           className="block truncate leading-snug font-semibold outline-none after:absolute after:inset-0 after:rounded-2xl"
         >
           {movie.title}
         </Link>
         <span className="block truncate text-sm text-muted">
-          {movie.confirmed_pick_method && (
-            <span className="hidden sm:inline">{pickMethodLabel(movie.confirmed_pick_method)} pick · </span>
+          {tonight ? (
+            <span className="font-medium text-fg/85">Tonight's pick</span>
+          ) : (
+            movie.confirmed_pick_method && (
+              <span className="hidden sm:inline">{pickMethodLabel(movie.confirmed_pick_method)} pick · </span>
+            )
           )}
-          Rate it after watching
+          {/* Phones: tonight's row says just that (the whole row opens the movie to rate it). */}
+          <span className={tonight ? 'hidden sm:inline' : undefined}>{tonight && ' · '}Rate it after watching</span>
         </span>
       </span>
       {/* Phones: the row itself says "Rate it after watching" and opens the movie, so only "Didn't watch it" sits here. */}

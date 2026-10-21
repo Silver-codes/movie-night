@@ -18,7 +18,7 @@ import {
 import { PageHeader } from '../components/PageHeader'
 import { PickFilters } from '../components/PickFilters'
 import { PickMethodCard } from '../components/PickMethodCard'
-import { PickActions } from '../components/PickActions'
+import { Decided, PickActions } from '../components/PickActions'
 import { PickWinner } from '../components/PickWinner'
 import { RateReminder } from '../components/RateReminder'
 import { Skeleton } from '../components/Skeleton'
@@ -27,16 +27,16 @@ import { SpinWheel } from '../components/SpinWheel'
 import { PODIUM_LANDED_MS, TopRatedPodium } from '../components/TopRatedPodium'
 import { PointerReadout, WheelLegend } from '../components/WheelLegend'
 import { fireConfetti, preloadConfetti, stopConfetti } from '../lib/confetti'
-import { PICK_METHODS, pickMethodInfo, RUNTIME_LIMITS, type RuntimeLimit } from '../lib/pickMethods'
+import { formatTime, movieNightDate } from '../lib/format'
+import { PICK_METHODS, pickMethodInfo, pickMethodLabel, RUNTIME_LIMITS, type RuntimeLimit } from '../lib/pickMethods'
 import { loadSoundEnabled, playChime, saveSoundEnabled, unlockAudio } from '../lib/tick'
-import { useMediaQuery } from '../lib/useMediaQuery'
 import { shortTitles } from '../lib/wheel'
 import { dismissToast, toast, useToastsAtBottomOnPhones } from '../lib/toast'
 
 const ALL_WATCHLIST: MovieFilters = { status: 'watchlist' }
 const DEFAULT_METHOD: PickMethod = 'wheel_weighted'
 /** After "Not tonight", the winner stays on screen this long with an Undo before the next pick starts. */
-const RESPIN_DELAY_MS = 1500
+const RESPIN_DELAY_MS = 3000
 /** How many titles the "Out tonight" line names before it counts the rest. */
 const OUT_TONIGHT_NAMED = 2
 
@@ -67,6 +67,11 @@ function parseMaxRuntime(value: string | null): RuntimeLimit | null {
  */
 const STAGE_BREAKOUT_CLASS = 'lg:mx-[calc(50%-min(50vw-2rem,50rem))]'
 
+/** A confirmed pick from the current movie night (rolls over at 06:00). */
+function pickedTonight(movie: Movie): boolean {
+  return movie.picked_at !== null && movieNightDate(new Date(movie.picked_at)) === movieNightDate()
+}
+
 function dismissOutTonightToast(ref: RefObject<number | null>) {
   if (ref.current !== null) {
     dismissToast(ref.current)
@@ -91,6 +96,8 @@ export function PickPage() {
   const [confirmedPick, setConfirmedPick] = useState<{ pickId: string; movie: Movie } | null>(null)
   /** Top Rated: the place they tapped instead of #1 (null = the server's winner). */
   const [chosenId, setChosenId] = useState<number | null>(null)
+  /** Tonight's pick they chose to pick another after ("Double feature?"), so the choose stage shows instead of it. */
+  const [pickingAnotherAfter, setPickingAnotherAfter] = useState<number | null>(null)
   const [sound, setSound] = useState(loadSoundEnabled)
   /** The wheel slice under the pointer, lit up in the list beside the wheel. */
   const [pointerIndex, setPointerIndex] = useState<number | null>(null)
@@ -133,7 +140,6 @@ export function PickPage() {
   // tonight") would play off-screen: bring the stage's top back into view first. Laptops/TVs see the whole stage.
   const stagePickId = stage.kind === 'choose' ? null : stage.result.pick_id
   const reduceMotion = useReducedMotion()
-  const remindersAfterFilters = !useMediaQuery('(min-width: 40rem)')
   useEffect(() => {
     const region = stageRegion.current
     if (stagePickId === null || !region || window.matchMedia('(min-width: 64rem)').matches) {
@@ -145,10 +151,20 @@ export function PickPage() {
     }
   }, [stagePickId, reduceMotion])
 
+  const movies = useMemo(() => watchlist.data ?? [], [watchlist.data])
+  // Newest first: tonight's pick (if any) leads, last week's waits below it.
+  const toRate = movies
+    .filter((m) => m.awaiting_verdict)
+    .sort((a, b) => Date.parse(b.picked_at ?? '') - Date.parse(a.picked_at ?? ''))
+  const tonight = toRate.find(pickedTonight)
+  // Once tonight is decided, /pick opens on it (after a reload or coming back later), until they pick another.
+  const showTonight = stage.kind === 'choose' && tonight !== undefined && pickingAnotherAfter !== tonight.id
+
   // Back to choosing (or off the page): confetti still falling from the last pick goes with it.
-  // Back from the stage on purpose ("Change how we pick", "Pick something else"): the button they used is gone, so
-  // focus goes to the chosen method, where they'd pick again, instead of falling to the top of the page.
-  const choosing = stage.kind === 'choose'
+  // Back from the stage or tonight's card on purpose ("Change how we pick", "Pick something else", "Double
+  // feature?"): the button they used is gone, so focus goes to the chosen method, where they'd pick again, instead of
+  // falling to the top of the page.
+  const choosing = stage.kind === 'choose' && !showTonight
   const focusMethodOnChoose = useRef(false)
   useEffect(() => {
     if (!choosing) {
@@ -175,12 +191,10 @@ export function PickPage() {
     return () => window.clearTimeout(timer)
   }, [podiumPickId])
 
-  const movies = useMemo(() => watchlist.data ?? [], [watchlist.data])
   const genres = useMemo(
     () => [...new Set(movies.flatMap((m) => m.genres))].sort((a, b) => a.localeCompare(b)),
     [movies],
   )
-  const toRate = movies.filter((m) => m.awaiting_verdict)
   // Same rules as the backend's candidates, for a live count before asking it.
   const inTheHat = movies.filter(
     (m) =>
@@ -189,8 +203,7 @@ export function PickPage() {
       (genre === null || m.genres.includes(genre)),
   ).length
   const pickableCount = movies.filter((m) => m.is_pickable).length
-  // Everything on the watchlist is pickable or skipped tonight, so the rest are the skipped ones.
-  const skipped = movies.filter((m) => !m.is_pickable)
+  const skipped = movies.filter((m) => m.skipped_tonight)
   const shortTitleOf = useMemo(() => {
     const short = shortTitles(movies.map((m) => m.title))
     return new Map(movies.map((m, i) => [m.id, short[i]]))
@@ -338,6 +351,10 @@ export function PickPage() {
   const backToChoose = () => {
     // The movie stays out (that's what they asked for), and no new pick starts.
     endLeaving({ announce: true })
+    // Left a confirmed stage: they want to pick again, so tonight's card mustn't take the choose stage's place.
+    if (confirmedPick) {
+      setPickingAnotherAfter(confirmedPick.movie.id)
+    }
     focusMethodOnChoose.current = true
     setStage({ kind: 'choose' })
   }
@@ -359,6 +376,23 @@ export function PickPage() {
       },
     })
   }
+
+  /** Tonight's card: they changed their minds after all, so its confirmation goes and they start over. */
+  function cancelTonight(movie: Movie) {
+    cancelPick.mutate(movie.id, {
+      onSuccess: () => {
+        toast.info(`${movie.title} isn't tonight's pick anymore`)
+        focusMethodOnChoose.current = true
+      },
+    })
+  }
+
+  /** Tonight's card: keep it, and pick another one as well. */
+  function pickAnother(movie: Movie) {
+    focusMethodOnChoose.current = true
+    setPickingAnotherAfter(movie.id)
+  }
+
   const busy =
     createPick.isPending ||
     confirmPick.isPending ||
@@ -396,34 +430,68 @@ export function PickPage() {
         Save a few movies to the watchlist first, then come back and spin.
       </EmptyState>
     )
-  } else if (stage.kind === 'choose' && pickableCount === 0) {
+  } else if (showTonight) {
     content = (
-      <EmptyState
-        title="Everything is out for tonight"
-        icon={<PickIcon className="size-7" />}
-        action={
-          <button type="button" className={PRIMARY_BUTTON_CLASS} onClick={bringAllBack} disabled={updateMovie.isPending}>
-            Bring them all back
-          </button>
-        }
-      >
-        You said “not tonight” to every movie on the watchlist. They come back on their own tomorrow.
-      </EmptyState>
+      // The decided card from the night's peak, as it was left: only the movie is lit.
+      <div className="flex w-full max-w-3xl flex-col items-center gap-3">
+        <div className="w-full">
+          <PickWinner
+            key={tonight.id}
+            movie={tonight}
+            spotlight
+            takeFocus={false}
+            scrollIntoView={false}
+            actions={
+              <Decided
+                movieId={tonight.id}
+                onPickSomethingElse={() => cancelTonight(tonight)}
+                cancelling={cancelPick.isPending}
+                busy={cancelPick.isPending}
+                announce={false}
+              />
+            }
+          />
+        </div>
+        <button
+          type="button"
+          onClick={() => pickAnother(tonight)}
+          disabled={cancelPick.isPending}
+          className="rounded-lg px-3 py-3 text-sm text-muted underline-offset-4 transition hover:text-fg hover:underline disabled:opacity-60 sm:py-2 lg:text-base"
+        >
+          Double feature? Pick another one
+        </button>
+      </div>
     )
+  } else if (stage.kind === 'choose' && pickableCount === 0) {
+    content =
+      skipped.length > 0 ? (
+        <EmptyState
+          title="Everything is out for tonight"
+          icon={<PickIcon className="size-7" />}
+          action={
+            <button type="button" className={PRIMARY_BUTTON_CLASS} onClick={bringAllBack} disabled={updateMovie.isPending}>
+              Bring them all back
+            </button>
+          }
+        >
+          You said “not tonight” to every movie left in the hat. They come back on their own tomorrow.
+        </EmptyState>
+      ) : (
+        // The rest of the watchlist was picked and is waiting for a verdict (out of the hat until then).
+        <div className="flex flex-col gap-6">
+          <EmptyState title="Everything's been picked" icon={<PickIcon className="size-7" />}>
+            Every movie on the watchlist is waiting for your verdict. Rate one after watching, or say you didn’t watch
+            it to put it back in the hat.
+          </EmptyState>
+          <RateReminders movies={toRate} />
+        </div>
+      )
   } else if (stage.kind === 'choose') {
     const isWheel = pickMethodInfo(method).isWheel
-    const reminders = toRate.length > 0 && (
-      <section aria-label="Waiting for your verdict" className="flex flex-col gap-2">
-        {toRate.map((movie) => (
-          <RateReminder key={movie.id} movie={movie} />
-        ))}
-      </section>
-    )
+    const reminders = toRate.length > 0 && <RateReminders movies={toRate} />
     content = (
       // Phones: tighter sections, so the filters sit above the sticky "in the hat" bar on the first screen.
       <div className="flex flex-col gap-6 sm:gap-8">
-        {!remindersAfterFilters && reminders}
-
         <div className="flex flex-col gap-3">
           <div role="radiogroup" aria-label="How to pick" className="grid grid-cols-3 gap-2 sm:gap-3">
             {PICK_METHODS.map((m) => (
@@ -449,9 +517,6 @@ export function PickPage() {
           maxRuntime={maxRuntime}
           onMaxRuntimeChange={(minutes) => setParam('max', minutes === null ? null : String(minutes))}
         />
-
-        {/* Phones: the pick comes first, so "rate it" reminders wait just past the filters (they'd push them under the bar). */}
-        {remindersAfterFilters && reminders}
 
         {/* On phones the sticky bar gets a full-width backdrop, so chip rows scrolling under it can't peek out beside it. */}
         <div className="sticky bottom-[calc(5rem+env(safe-area-inset-bottom))] z-10 -mx-4 -mt-6 bg-linear-to-t from-ink-950 from-70% to-transparent px-4 pt-6 pb-2 sm:mx-0 sm:mt-0 sm:bg-none sm:p-0 md:bottom-4">
@@ -501,6 +566,10 @@ export function PickPage() {
             </div>
           </div>
         </div>
+
+        {/* The pick comes first on every screen: "rate it" reminders wait past the hat bar (in the tab order too),
+            so they never push the filters under the sticky bar. */}
+        {reminders}
       </div>
     )
   } else {
@@ -622,21 +691,49 @@ export function PickPage() {
   const stageMode = stage.kind !== 'choose' && watchlist.data !== undefined && movies.length > 0
   // Phones: the top of the stage is the wheel's pointer, so toasts ("… is out for tonight · Undo") go to the bottom.
   useToastsAtBottomOnPhones(stageMode)
+  let header: ReactNode
+  if (stageMode) {
+    // The page title stays for screen readers and as the focus fallback.
+    header = <h1 className="sr-only">What are we watching?</h1>
+  } else if (showTonight) {
+    // The question is answered; how and when jog the memory after a reload or a few hours away.
+    const method = tonight.confirmed_pick_method
+    const time = tonight.picked_at && formatTime(tonight.picked_at)
+    header = (
+      <PageHeader
+        title="Tonight we're watching"
+        subtitle={time && (method ? `${pickMethodLabel(method)} pick, decided at ${time}.` : `Decided at ${time}.`)}
+      />
+    )
+  } else {
+    // Phones: the chosen method's tagline under the tiles says it, and the filters need the room.
+    header = (
+      <PageHeader
+        title="What are we watching?"
+        subtitle="Go with the top rated, or let the wheel decide."
+        subtitleFromSm
+      />
+    )
+  }
   return (
     <>
-      {stageMode ? (
-        // The page title stays for screen readers and as the focus fallback.
-        <h1 className="sr-only">What are we watching?</h1>
-      ) : (
-        // Phones: the chosen method's tagline under the tiles says it, and the filters need the room.
-        <PageHeader
-          title="What are we watching?"
-          subtitle="Go with the top rated, or let the wheel decide."
-          subtitleFromSm
-        />
-      )}
+      {header}
       {content}
     </>
+  )
+}
+
+/**
+ * "Rate it after watching" for every confirmed pick still on the watchlist, newest first; tonight's are marked (a
+ * double feature has two).
+ */
+function RateReminders({ movies }: { movies: Movie[] }) {
+  return (
+    <section aria-label="Waiting for your verdict" className="flex flex-col gap-2">
+      {movies.map((movie) => (
+        <RateReminder key={movie.id} movie={movie} tonight={pickedTonight(movie)} />
+      ))}
+    </section>
   )
 }
 

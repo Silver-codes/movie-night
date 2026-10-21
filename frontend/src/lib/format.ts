@@ -42,6 +42,11 @@ export function formatMonth(iso: string): string {
   return parseIsoDate(iso).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })
 }
 
+/** A timestamp's local time of day, e.g. "20:14". */
+export function formatTime(iso: string): string {
+  return new Date(iso).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
+}
+
 const NIGHT_ROLLOVER_HOUR = 6
 
 /** Tonight's movie-night date as "YYYY-MM-DD", same as the backend: local time, rolls over at 06:00. */

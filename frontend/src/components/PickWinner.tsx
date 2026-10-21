@@ -14,7 +14,7 @@ type Props = {
   actions: ReactNode
   /** Seconds before the card springs in (the podium lets #1 land first). */
   delay?: number
-  /** Below `lg` the card sits under the wheel and scrolls into view; the podium is its own reveal, so it opts out. */
+  /** Below `lg` the card sits under the wheel or podium and scrolls into view once it has landed (after `delay`). */
   scrollIntoView?: boolean
   /** Moves focus to the title when the card appears; off when they swap places on Top Rated (focus stays there). */
   takeFocus?: boolean
@@ -33,9 +33,6 @@ const LANDED_PAUSE_REDUCED_MS = 600
 /** "9 hype together", or "so far" while one of them hasn't rated it: the plain-words version of `hype_total`. */
 function hypeSummary(movie: Movie): ReactNode {
   const rated = [movie.fuf_hype, movie.cookie_hype].filter((v) => v !== null).length
-  if (rated === 0) {
-    return 'No hype yet'
-  }
   return (
     <>
       <span className="font-bold text-fg">{movie.hype_total}</span> hype {rated === 2 ? 'together' : 'so far'}
@@ -72,10 +69,10 @@ export function PickWinner({
     }
     const timer = window.setTimeout(
       () => ref.current?.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'nearest' }),
-      reduceMotion ? LANDED_PAUSE_REDUCED_MS : LANDED_PAUSE_MS,
+      reduceMotion ? LANDED_PAUSE_REDUCED_MS : delay * 1000 + LANDED_PAUSE_MS,
     )
     return () => window.clearTimeout(timer)
-  }, [movie.id, reduceMotion, scrollIntoView, takeFocus])
+  }, [movie.id, reduceMotion, scrollIntoView, takeFocus, delay])
 
   return (
     <motion.section
@@ -142,17 +139,22 @@ export function PickWinner({
 
         {/* Once decided (spotlight), the hype steps back: the debate is over, and the news below must fit the
             window with the wheel or podium (on phones, the screen above the tab bar). */}
-        <div className={`flex flex-wrap items-center gap-x-6 gap-y-3 lg:gap-x-8 ${spotlight ? 'hidden' : ''}`}>
-          {PEOPLE.map((person) => (
-            <StarDisplay
-              key={person.id}
-              person={person.id}
-              value={person.id === 'fuf' ? movie.fuf_hype : movie.cookie_hype}
-              size="lg"
-            />
-          ))}
-          <span className="text-sm text-muted lg:text-lg">{hypeSummary(movie)}</span>
-        </div>
+        {/* Nobody has hyped it: one quiet line, not two "not rated" rows saying the same thing. */}
+        {movie.fuf_hype === null && movie.cookie_hype === null ? (
+          <p className={`text-muted lg:text-lg ${spotlight ? 'hidden' : ''}`}>No hype yet</p>
+        ) : (
+          <div className={`flex flex-wrap items-center gap-x-6 gap-y-3 lg:gap-x-8 ${spotlight ? 'hidden' : ''}`}>
+            {PEOPLE.map((person) => (
+              <StarDisplay
+                key={person.id}
+                person={person.id}
+                value={person.id === 'fuf' ? movie.fuf_hype : movie.cookie_hype}
+                size="lg"
+              />
+            ))}
+            <span className="text-sm text-muted lg:text-lg">{hypeSummary(movie)}</span>
+          </div>
+        )}
 
         {note && <p className={`-mt-2 text-sm text-muted lg:-mt-3 lg:text-lg ${spotlight ? 'hidden' : ''}`}>{note}</p>}
 

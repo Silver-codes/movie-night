@@ -55,6 +55,20 @@ export function PickActions({
     )
   }
 
+  // While "Not tonight" is on its way out, Undo is the only thing to do: the buttons step aside until the next pick.
+  if (onUndoNotTonight) {
+    return (
+      <div ref={root}>
+        <UndoNotTonight
+          onUndo={() => {
+            refocusAfterUndo.current = true
+            onUndoNotTonight()
+          }}
+        />
+      </div>
+    )
+  }
+
   return (
     <div ref={root} className="flex flex-col gap-3">
       <div className="flex flex-col gap-2 sm:flex-row">
@@ -77,24 +91,15 @@ export function PickActions({
           </button>
         )}
       </div>
-      {onUndoNotTonight ? (
-        <UndoNotTonight
-          onUndo={() => {
-            refocusAfterUndo.current = true
-            onUndoNotTonight()
-          }}
-        />
-      ) : (
-        <button
-          type="button"
-          onClick={onNotTonight}
-          disabled={busy}
-          // A full-height tap target, set a little apart from "Spin again" so a thumb doesn't slip onto it.
-          className="mt-1 self-center rounded-lg px-3 py-3 text-sm text-muted underline-offset-4 transition hover:text-fg hover:underline disabled:opacity-60 sm:mt-0 sm:py-1 lg:text-lg"
-        >
-          Not tonight, pick again
-        </button>
-      )}
+      <button
+        type="button"
+        onClick={onNotTonight}
+        disabled={busy}
+        // A full-height tap target, set a little apart from "Spin again" so a thumb doesn't slip onto it.
+        className="mt-1 self-center rounded-lg px-3 py-3 text-sm text-muted underline-offset-4 transition hover:text-fg hover:underline disabled:opacity-60 sm:mt-0 sm:py-1 lg:text-lg"
+      >
+        Not tonight, pick again
+      </button>
     </div>
   )
 }
@@ -102,17 +107,21 @@ export function PickActions({
 /**
  * After "We're watching this!": the evening's high point. The lights go down on the rest of the stage (PickPage),
  * and this speaks to the two of them. Rating comes later, so it's a quiet secondary; taking it back is quieter still.
+ * Also tonight's card when /pick is opened again after confirming (`announce` off: nothing just happened).
  */
-function Decided({
+export function Decided({
   movieId,
   onPickSomethingElse,
   cancelling,
   busy,
+  announce = true,
 }: {
   movieId: number
   onPickSomethingElse: () => void
   cancelling: boolean
   busy: boolean
+  /** Just confirmed: the news takes focus and (below lg) scrolls into view. */
+  announce?: boolean
 }) {
   const reduceMotion = useReducedMotion()
   const [first, second] = usePeople()
@@ -125,6 +134,9 @@ function Decided({
   // Below lg the card sits under the wheel, so the news (and "Pick something else") is brought clear of the
   // tab bar once the card has settled into its decided shape. `nearest` leaves a card that's already in view alone.
   useEffect(() => {
+    if (!announce) {
+      return
+    }
     news.current?.focus({ preventScroll: true })
     if (window.matchMedia('(min-width: 64rem)').matches) {
       return
@@ -133,13 +145,13 @@ function Decided({
       root.current?.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'nearest' }),
     )
     return () => window.cancelAnimationFrame(frame)
-  }, [reduceMotion])
+  }, [announce, reduceMotion])
 
   // No box of its own: the news is written straight onto the winner card, under a hairline, as the card's last word.
   return (
     <motion.div
       ref={root}
-      initial={reduceMotion ? false : { opacity: 0, y: 12 }}
+      initial={reduceMotion || !announce ? false : { opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ type: 'spring', stiffness: 240, damping: 22 }}
       className="flex scroll-mb-[calc(5.5rem+env(safe-area-inset-bottom))] flex-col gap-4 border-t border-ink-700 pt-5 md:scroll-mb-6 lg:gap-5 lg:pt-6"
@@ -187,7 +199,7 @@ function Decided({
   )
 }
 
-/** Takes the place of the "Not tonight" link (and its focus) until the next pick starts. */
+/** Takes the place of the buttons (and the focus of "Not tonight") until the next pick starts. */
 function UndoNotTonight({ onUndo }: { onUndo: () => void }) {
   const undo = useRef<HTMLButtonElement>(null)
   // The link that had focus is gone; keep the keyboard where it was.
@@ -195,7 +207,8 @@ function UndoNotTonight({ onUndo }: { onUndo: () => void }) {
     undo.current?.focus({ preventScroll: true })
   }, [])
   return (
-    <p className="flex items-center justify-center gap-3 self-center text-sm text-muted lg:text-lg">
+    // As tall as the button row it replaces, so the card doesn't jump for three seconds.
+    <p className="flex min-h-29 flex-wrap items-center justify-center gap-x-4 gap-y-2 text-muted lg:min-h-28 lg:text-xl">
       {/* Focus lands on Undo, so it carries this line too (a screen reader hears what's happening). */}
       <span id="out-tonight-note">Out for tonight. Picking again…</span>
       <button
@@ -203,7 +216,7 @@ function UndoNotTonight({ onUndo }: { onUndo: () => void }) {
         type="button"
         onClick={onUndo}
         aria-describedby="out-tonight-note"
-        className="-my-1.5 rounded-lg px-3 py-1.5 font-semibold text-fg ring-1 ring-ink-600 transition hover:bg-ink-800"
+        className={secondaryButtonClass('stage')}
       >
         Undo
       </button>

@@ -46,6 +46,14 @@ function HypeCount({ value }: { value: number }) {
   )
 }
 
+const ORDINAL_SUFFIX: Record<string, string> = { one: 'st', two: 'nd', few: 'rd', other: 'th' }
+const ordinals = new Intl.PluralRules('en', { type: 'ordinal' })
+
+/** A place's name for screen readers, e.g. "2nd place: Goblet of Fire, 3 hype" (pressed = the one on the card). */
+function placeLabel(place: number, movie: Movie): string {
+  return `${place}${ORDINAL_SUFFIX[ordinals.select(place)]} place: ${movie.title}, ${movie.hype_total} hype`
+}
+
 /**
  * Ranked podium with tonight's pick beside it (below it on phones): the same winner card as the wheels.
  * #1 starts on the card; tapping any other place (on the podium or in the folded list) puts that one there instead.
@@ -85,11 +93,15 @@ export function TopRatedPodium({ candidates, winner, selectedId, onSelect, locke
   return (
     // Top-aligned, so opening "N more in the hat" grows the ranking downward without moving the winner.
     <div className="grid gap-8 lg:grid-cols-2 lg:items-start lg:gap-12">
-      <div className={`flex min-w-0 flex-col gap-5 ${LIGHTS_DOWN_CLASS} ${decided ? DIMMED_CLASS : ''}`}>
+      {/* Laptops/TVs: with "N more" open the ranking keeps to the window (below the back row): the podium steps down
+          to a compact size and the list scrolls inside itself, so the whole stage stays on one screen. */}
+      <div
+        className={`group/ranking flex min-w-0 flex-col gap-5 lg:has-[details[open]]:max-h-[calc(100dvh-11.5rem)] ${LIGHTS_DOWN_CLASS} ${decided ? DIMMED_CLASS : ''}`}
+      >
         {/* Never taller than the window: #1's poster is about half the podium's width, the rest ~23.25rem. */}
         {/* Two places: two of the three columns, centered, so each place keeps its size. */}
         <ol
-          className={`mx-auto grid items-end gap-3 sm:gap-5 ${
+          className={`mx-auto grid shrink-0 items-end gap-3 transition-[width] duration-300 ease-out motion-reduce:transition-none sm:gap-5 lg:group-has-[details[open]]/ranking:w-3/5 ${
             podium.length === 2
               ? 'w-2/3 grid-cols-2 lg:max-w-[calc((200dvh-46.5rem)*2/3)]'
               : 'w-full grid-cols-3 lg:max-w-[calc(200dvh-46.5rem)]'
@@ -114,7 +126,7 @@ export function TopRatedPodium({ candidates, winner, selectedId, onSelect, locke
                   onClick={() => select(candidate.movie.id)}
                   disabled={locked}
                   aria-pressed={isSelected}
-                  aria-label={`Choose ${candidate.movie.title}`}
+                  aria-label={placeLabel(i + 1, candidate.movie)}
                   className="group flex w-full min-w-0 flex-col items-center gap-2 rounded-xl transition enabled:active:scale-[0.98] disabled:cursor-default"
                 >
                   <div className={`relative w-full ${first ? 'rounded-xl shadow-xl shadow-black/60' : 'sm:px-4'}`}>
@@ -140,12 +152,13 @@ export function TopRatedPodium({ candidates, winner, selectedId, onSelect, locke
                   <div className="flex w-full min-w-0 flex-col items-center gap-1 text-center">
                     <p
                       title={candidate.movie.title}
-                      // Phones: three narrow lines fit a whole title, where two cut it mid-word.
-                      className={`line-clamp-3 leading-snug font-semibold sm:line-clamp-2 ${first ? 'text-base lg:text-xl' : 'text-sm lg:text-lg'}`}
+                      // Phones and the compact podium: three narrow lines fit a whole title, where two cut it mid-word.
+                      className={`line-clamp-3 leading-snug font-semibold sm:line-clamp-2 lg:group-has-[details[open]]/ranking:line-clamp-3 ${first ? 'text-base lg:text-xl' : 'text-sm lg:text-lg'}`}
                     >
                       {titles[i]}
                     </p>
-                    <div className="hidden flex-col items-center gap-1 sm:flex lg:gap-1.5">
+                    {/* Compact podium (list open): the plinth's hype count says it. */}
+                    <div className="hidden flex-col items-center gap-1 sm:flex lg:gap-1.5 lg:group-has-[details[open]]/ranking:hidden">
                       {PEOPLE.map((person) => (
                         <StarDisplay
                           key={person.id}
@@ -173,8 +186,9 @@ export function TopRatedPodium({ candidates, winner, selectedId, onSelect, locke
         </ol>
 
         {rest.length > 0 && (
-          <details className="group rounded-2xl bg-ink-900/60 ring-1 ring-ink-700">
-            <summary className="flex cursor-pointer list-none items-center justify-between gap-3 rounded-2xl px-4 py-3 text-sm font-semibold text-muted transition hover:text-fg lg:text-lg [&::-webkit-details-marker]:hidden">
+          <details className="group min-h-0 rounded-2xl bg-ink-900/60 ring-1 ring-ink-700 lg:overflow-y-auto lg:overscroll-contain">
+            {/* Sticky, so it stays the way to fold the list while the list scrolls under it. */}
+            <summary className="sticky top-0 z-10 flex cursor-pointer list-none items-center justify-between gap-3 rounded-2xl bg-ink-900 px-4 py-3 text-sm font-semibold text-muted transition hover:text-fg group-open:rounded-b-none lg:text-lg [&::-webkit-details-marker]:hidden">
               {rest.length} more in the hat
               <ChevronDownIcon className="size-4 transition-transform group-open:rotate-180 lg:size-5" />
             </summary>
@@ -188,8 +202,8 @@ export function TopRatedPodium({ candidates, winner, selectedId, onSelect, locke
                       onClick={() => select(candidate.movie.id)}
                       disabled={locked}
                       aria-pressed={isSelected}
-                      aria-label={`Choose ${candidate.movie.title}`}
-                      className={`flex w-full items-center gap-3 px-4 py-2.5 text-left transition focus-visible:-outline-offset-2 disabled:cursor-default lg:gap-4 lg:py-3 lg:text-lg ${
+                      aria-label={placeLabel(i + 4, candidate.movie)}
+                      className={`flex w-full items-center gap-3 px-4 py-2.5 text-left transition focus-visible:-outline-offset-2 disabled:cursor-default lg:gap-4 lg:py-2 lg:text-lg ${
                         isSelected
                           ? 'bg-accent-soft ring-1 ring-accent ring-inset'
                           : 'enabled:hover:bg-ink-800'
@@ -203,7 +217,7 @@ export function TopRatedPodium({ candidates, winner, selectedId, onSelect, locke
                         title={candidate.movie.title}
                         decorative
                         compact
-                        className="w-9 shrink-0 rounded-md! lg:w-11"
+                        className="w-9 shrink-0 rounded-md! lg:w-10"
                       />
                       <span title={candidate.movie.title} className="min-w-0 flex-1 truncate font-medium">
                         {titles[i + 3]}
@@ -228,7 +242,8 @@ export function TopRatedPodium({ candidates, winner, selectedId, onSelect, locke
           actions={actions}
           // #1 waits for the podium to land; a place they tapped comes straight in.
           delay={switched ? 0 : PODIUM_LANDED_MS / 1000}
-          scrollIntoView={false}
+          // Phones: #1's card comes up once the podium has landed (a tapped place scrolls itself, in `select`).
+          scrollIntoView={!switched}
           takeFocus={!switched}
           // The poster is right there on the podium, unless the card has no backdrop to show: then it carries it.
           showPoster={!selected.backdrop_path}
