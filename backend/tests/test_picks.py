@@ -389,11 +389,13 @@ def test_confirmed_pick_method_is_the_latest_confirmed(
     client: TestClient, make_movie: MakeMovie, seed_rng: SeedRng
 ) -> None:
     movie = make_movie()
-    first = _pick(client, "top_rated")["pick_id"]
+    client.post(f"/api/picks/{_pick(client, 'top_rated')['pick_id']}/confirm")
+    # Watched, then back on the watchlist for a rewatch: in the hat again.
+    client.post(f"/api/movies/{movie.id}/watched", json={})
+    client.patch(f"/api/movies/{movie.id}", json={"status": "watchlist"})
     _pick(client, "wheel_random")  # never confirmed
     third = _pick(client, "wheel_weighted")["pick_id"]
-    client.post(f"/api/picks/{first}/confirm")
-    client.post(f"/api/picks/{third}/confirm")
+    assert client.post(f"/api/picks/{third}/confirm").status_code == 200
 
     assert client.get(f"/api/movies/{movie.id}").json()["confirmed_pick_method"] == "wheel_weighted"
 
@@ -474,6 +476,72 @@ def test_cancel_pick_without_a_waiting_pick_is_409(
 
 def test_cancel_pick_unknown_movie_is_404(client: TestClient) -> None:
     assert client.delete("/api/movies/999/pick").status_code == 404
+
+
+def test_restore_pick_undoes_the_cancel(
+    client: TestClient, make_movie: MakeMovie, seed_rng: SeedRng, session: Session
+) -> None:
+    movie = make_movie(fuf_hype=4)
+    client.post(f"/api/picks/{_pick(client, 'wheel_random')['pick_id']}/confirm")
+    before = session.exec(select(Pick)).one()
+    method, picked_at = before.method, before.picked_at
+    client.delete(f"/api/movies/{movie.id}/pick")
+
+    response = client.post(f"/api/movies/{movie.id}/pick/restore")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["awaiting_verdict"] is True
+    assert body["is_pickable"] is False
+    assert body["confirmed_pick_method"] == "wheel_random"
+    session.expire_all()
+    restored = session.exec(select(Pick)).one()
+    # The same pick as before, not a new one from now.
+    assert (restored.method, restored.picked_at) == (method, picked_at)
+    # Only once: the undo is used up.
+    assert client.post(f"/api/movies/{movie.id}/pick/restore").status_code == 404
+
+
+def test_restore_pick_without_a_cancel_is_404(client: TestClient, make_movie: MakeMovie) -> None:
+    movie = make_movie()
+
+    response = client.post(f"/api/movies/{movie.id}/pick/restore")
+
+    assert response.status_code == 404
+    assert response.json() == {"detail": "Too late to undo that. Pick it again."}
+    assert client.post("/api/movies/999/pick/restore").status_code == 404
+
+
+def test_restore_pick_after_a_newer_pick_is_409(
+    client: TestClient, make_movie: MakeMovie, seed_rng: SeedRng, session: Session
+) -> None:
+    movie = make_movie(fuf_hype=4)
+    client.post(f"/api/picks/{_pick(client, 'top_rated')['pick_id']}/confirm")
+    client.delete(f"/api/movies/{movie.id}/pick")
+    # Picked again before the Undo: that confirmation stands, and isn't doubled.
+    client.post(f"/api/picks/{_pick(client, 'top_rated')['pick_id']}/confirm")
+
+    response = client.post(f"/api/movies/{movie.id}/pick/restore")
+
+    assert response.status_code == 409
+    assert len(session.exec(select(Pick)).all()) == 1
+
+
+def test_confirm_of_a_movie_picked_since_is_409(
+    client: TestClient, make_movie: MakeMovie, seed_rng: SeedRng, session: Session
+) -> None:
+    movie = make_movie(fuf_hype=4)
+    client.post(f"/api/picks/{_pick(client, 'top_rated')['pick_id']}/confirm")
+    client.delete(f"/api/movies/{movie.id}/pick")
+    shown = _pick(client, "top_rated")["pick_id"]
+    # While the new pick is on screen, the Undo brings the old confirmation back.
+    client.post(f"/api/movies/{movie.id}/pick/restore")
+
+    response = client.post(f"/api/picks/{shown}/confirm")
+
+    assert response.status_code == 409
+    assert response.json() == {"detail": "That movie is already picked. Pick again."}
+    assert len(session.exec(select(Pick)).all()) == 1
 
 
 def test_old_unconfirmed_picks_are_deleted_on_startup(engine: Engine, session: Session, make_movie: MakeMovie) -> None:

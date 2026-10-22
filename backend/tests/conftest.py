@@ -10,6 +10,7 @@ from sqlmodel import Session, create_engine
 
 from app import db as db_module
 from app import main as main_module
+from app.api.movies import CancelledPicks, get_cancelled_picks
 from app.config import Settings
 from app.models import Movie
 from app.tmdb import TMDB_API_URL
@@ -41,8 +42,12 @@ def client(
     # Never read the real backend/.env in tests.
     settings = Settings(tmdb_token=tmdb_token, _env_file=None)  # type: ignore[call-arg]
     monkeypatch.setattr(main_module, "get_settings", lambda: settings)
+    # Cancelled picks are kept by movie id, and every test's ids start at 1: each test gets its own store.
+    cancelled = CancelledPicks()
+    main_module.app.dependency_overrides[get_cancelled_picks] = lambda: cancelled
     with TestClient(main_module.app) as test_client:
         yield test_client
+    main_module.app.dependency_overrides.pop(get_cancelled_picks, None)
 
 
 @pytest.fixture

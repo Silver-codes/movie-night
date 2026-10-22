@@ -1,5 +1,5 @@
 import { motion, useReducedMotion } from 'motion/react'
-import { useEffect, useId, useRef } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { Link } from 'react-router'
 import { usePeople } from '../people'
 import { primaryButtonClass, secondaryButtonClass } from './buttonStyles'
@@ -105,6 +105,12 @@ export function PickActions({
 }
 
 /**
+ * How long the news holds its buttons back after confirming: past the second click of a double-click on "We're
+ * watching this!" and the card's settling, so that click can't land on "Pick something else" or "Rate it…".
+ */
+const DECIDED_SETTLE_MS = 700
+
+/**
  * After "We're watching this!": the evening's high point. The lights go down on the rest of the stage (PickPage),
  * and this speaks to the two of them. Rating comes later, so it's a quiet secondary; taking it back is quieter still.
  * Also tonight's card when /pick is opened again after confirming (`announce` off: nothing just happened).
@@ -129,6 +135,14 @@ export function Decided({
   const news = useRef<HTMLDivElement>(null)
   const headingId = useId()
   const namesId = useId()
+  const [settled, setSettled] = useState(!announce)
+  useEffect(() => {
+    if (settled) {
+      return
+    }
+    const timer = window.setTimeout(() => setSettled(true), DECIDED_SETTLE_MS)
+    return () => window.clearTimeout(timer)
+  }, [settled])
   // The button that confirmed is gone; keep the keyboard (and the screen reader) on the news. Focus alone says it
   // (no live region as well, or it would be read twice): the group is named by the headline, described by the names.
   // Below lg the card sits under the wheel, so the news (and "Pick something else") is brought clear of the
@@ -182,7 +196,14 @@ export function Decided({
           .
         </p>
       </div>
-      <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
+      {/* Inert while settling (a stray click can't reach them, and the keyboard is on the news), then they fade in. */}
+      <motion.div
+        inert={!settled}
+        initial={reduceMotion || !announce ? false : { opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1], delay: (DECIDED_SETTLE_MS - 400) / 1000 }}
+        className="flex flex-wrap items-center gap-x-5 gap-y-2"
+      >
         <Link to={`/watchlist?movie=${movieId}`} className={secondaryButtonClass('stage')}>
           Rate it after watching
         </Link>
@@ -194,7 +215,7 @@ export function Decided({
         >
           {cancelling ? 'Cancelling…' : 'Pick something else'}
         </button>
-      </div>
+      </motion.div>
     </motion.div>
   )
 }

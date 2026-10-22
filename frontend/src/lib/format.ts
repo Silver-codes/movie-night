@@ -55,3 +55,11 @@ export function movieNightDate(now: Date = new Date()): string {
   const pad = (n: number) => String(n).padStart(2, '0')
   return `${night.getFullYear()}-${pad(night.getMonth() + 1)}-${pad(night.getDate())}`
 }
+
+const ORDINAL_SUFFIX: Record<string, string> = { one: 'st', two: 'nd', few: 'rd', other: 'th' }
+const ordinals = new Intl.PluralRules('en', { type: 'ordinal' })
+
+/** 1 → "1st", 2 → "2nd", 23 → "23rd". */
+export function formatOrdinal(n: number): string {
+  return `${n}${ORDINAL_SUFFIX[ordinals.select(n)]}`
+}

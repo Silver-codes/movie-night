@@ -2,6 +2,7 @@ import { motion, useReducedMotion } from 'motion/react'
 import { useRef, useState, type ReactNode } from 'react'
 import { posterUrl } from '../api/images'
 import type { Movie, PickCandidate } from '../api/types'
+import { formatOrdinal } from '../lib/format'
 import { shortTitles } from '../lib/wheel'
 import { PEOPLE } from '../people'
 import { DIMMED_CLASS, LIGHTS_DOWN_CLASS } from './lightsDown'
@@ -46,12 +47,9 @@ function HypeCount({ value }: { value: number }) {
   )
 }
 
-const ORDINAL_SUFFIX: Record<string, string> = { one: 'st', two: 'nd', few: 'rd', other: 'th' }
-const ordinals = new Intl.PluralRules('en', { type: 'ordinal' })
-
 /** A place's name for screen readers, e.g. "2nd place: Goblet of Fire, 3 hype" (pressed = the one on the card). */
 function placeLabel(place: number, movie: Movie): string {
-  return `${place}${ORDINAL_SUFFIX[ordinals.select(place)]} place: ${movie.title}, ${movie.hype_total} hype`
+  return `${formatOrdinal(place)} place: ${movie.title}, ${movie.hype_total} hype`
 }
 
 /**

@@ -1,23 +1,46 @@
 import { Link } from 'react-router'
 import { posterUrl } from '../api/images'
-import { useCancelPick } from '../api/movieHooks'
+import { useCancelPick, useRestorePick } from '../api/movieHooks'
 import type { Movie } from '../api/types'
 import { pickMethodLabel } from '../lib/pickMethods'
 import { toast } from '../lib/toast'
 import { PosterImage } from './PosterImage'
 
+type Props = {
+  movie: Movie
+  /** Picked tonight: "Tonight's pick", or in a double feature its place in the evening ("1st feature"). */
+  tonightTag?: string
+}
+
 /**
  * "You picked X, rate it after watching": for a confirmed pick that's still on the watchlist. The row opens the
- * movie to rate it; "Didn't watch it" takes the pick back instead, and the movie stays on the watchlist.
+ * movie to rate it. The button takes the pick back instead, and the movie stays on the watchlist: "Take it back"
+ * for tonight's (they changed their minds), "Didn't watch it" for an older one.
  */
-export function RateReminder({ movie, tonight = false }: { movie: Movie; tonight?: boolean }) {
+export function RateReminder({ movie, tonightTag }: Props) {
+  const tonight = tonightTag !== undefined
   const cancelPick = useCancelPick()
+  const restorePick = useRestorePick()
 
   // mutateAsync: the row is gone once the pick is, so its own callbacks wouldn't run. Failures show the global toast.
-  function didntWatch() {
+  function takeBack() {
     cancelPick
       .mutateAsync(movie.id)
-      .then(() => toast.info(`${movie.title} stays on the watchlist`))
+      .then(() =>
+        toast.info(tonight ? `${movie.title} isn't tonight's pick anymore` : `${movie.title} stays on the watchlist`, {
+          action: { label: 'Undo', onClick: undo },
+        }),
+      )
+      .catch(() => {})
+  }
+
+  /** The pick comes back as it was, and with it this row. */
+  function undo() {
+    restorePick
+      .mutateAsync(movie.id)
+      .then(() =>
+        toast.success(tonight ? `${movie.title} is tonight's pick again` : `${movie.title} is waiting for your verdict`),
+      )
       .catch(() => {})
   }
 
@@ -31,14 +54,14 @@ export function RateReminder({ movie, tonight = false }: { movie: Movie; tonight
         <Link
           to={`/watchlist?movie=${movie.id}`}
           title={movie.title}
-          aria-label={`Rate ${movie.title}${tonight ? ", tonight's pick" : ''}`}
+          aria-label={`Rate ${movie.title}${tonight ? `, ${tonightTag}` : ''}`}
           className="block truncate leading-snug font-semibold outline-none after:absolute after:inset-0 after:rounded-2xl"
         >
           {movie.title}
         </Link>
         <span className="block truncate text-sm text-muted">
           {tonight ? (
-            <span className="font-medium text-fg/85">Tonight's pick</span>
+            <span className="font-medium text-fg/85">{tonightTag}</span>
           ) : (
             movie.confirmed_pick_method && (
               <span className="hidden sm:inline">{pickMethodLabel(movie.confirmed_pick_method)} pick · </span>
@@ -48,7 +71,7 @@ export function RateReminder({ movie, tonight = false }: { movie: Movie; tonight
           <span className={tonight ? 'hidden sm:inline' : undefined}>{tonight && ' · '}Rate it after watching</span>
         </span>
       </span>
-      {/* Phones: the row itself says "Rate it after watching" and opens the movie, so only "Didn't watch it" sits here. */}
+      {/* Phones: the row itself says "Rate it after watching" and opens the movie, so only the take-back sits here. */}
       <span className="flex shrink-0 items-center gap-5 sm:flex-row-reverse">
         <span
           aria-hidden="true"
@@ -58,13 +81,13 @@ export function RateReminder({ movie, tonight = false }: { movie: Movie; tonight
         </span>
         <button
           type="button"
-          onClick={didntWatch}
+          onClick={takeBack}
           disabled={cancelPick.isPending}
-          aria-label={`Didn't watch ${movie.title}`}
+          aria-label={tonight ? `Take back ${movie.title}` : `Didn't watch ${movie.title}`}
           // A thumb-sized target on phones without making the row taller.
           className="relative z-10 -my-3 rounded-lg py-3 text-sm sm:-my-1.5 sm:py-1.5 text-muted underline-offset-4 transition hover:text-fg hover:underline disabled:opacity-60"
         >
-          {cancelPick.isPending ? 'Removing…' : "Didn't watch it"}
+          {cancelPick.isPending ? (tonight ? 'Taking back…' : 'Removing…') : tonight ? 'Take it back' : "Didn't watch it"}
         </button>
       </span>
     </div>

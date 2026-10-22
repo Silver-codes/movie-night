@@ -1,12 +1,12 @@
 import { useReducedMotion } from 'motion/react'
 import { useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react'
 import { Link, useSearchParams } from 'react-router'
-import { useCancelPick, useMovies, useUpdateMovie } from '../api/movieHooks'
+import { useCancelPick, useMovies, useRestorePick, useUpdateMovie } from '../api/movieHooks'
 import { useConfirmPick, useCreatePick } from '../api/pickHooks'
 import type { Movie, MovieFilters, PickMethod, PickRequest, PickResult } from '../api/types'
 import { PRIMARY_BUTTON_CLASS, primaryButtonClass } from '../components/buttonStyles'
 import { EmptyState } from '../components/EmptyState'
-import { DIMMED_CLASS, LIGHTS_DOWN_CLASS, RAISE_ON_REACH_CLASS } from '../components/lightsDown'
+import { DIMMED_CLASS, HOUSE_LIGHTS_CLASS, LIGHTS_DOWN_CLASS, RAISE_ON_REACH_CLASS } from '../components/lightsDown'
 import { ErrorState } from '../components/ErrorState'
 import {
   ArrowLeftIcon,
@@ -27,7 +27,8 @@ import { SpinWheel } from '../components/SpinWheel'
 import { PODIUM_LANDED_MS, TopRatedPodium } from '../components/TopRatedPodium'
 import { PointerReadout, WheelLegend } from '../components/WheelLegend'
 import { fireConfetti, preloadConfetti, stopConfetti } from '../lib/confetti'
-import { formatTime, movieNightDate } from '../lib/format'
+import { formatOrdinal, formatTime, movieNightDate } from '../lib/format'
+import { useHouseLights } from '../lib/houseLights'
 import { PICK_METHODS, pickMethodInfo, pickMethodLabel, RUNTIME_LIMITS, type RuntimeLimit } from '../lib/pickMethods'
 import { loadSoundEnabled, playChime, saveSoundEnabled, unlockAudio } from '../lib/tick'
 import { shortTitles } from '../lib/wheel'
@@ -37,6 +38,8 @@ const ALL_WATCHLIST: MovieFilters = { status: 'watchlist' }
 const DEFAULT_METHOD: PickMethod = 'wheel_weighted'
 /** After "Not tonight", the winner stays on screen this long with an Undo before the next pick starts. */
 const RESPIN_DELAY_MS = 3000
+/** The next feature's title by how many are picked tonight already (one → "Second feature"); then "6th feature". */
+const FEATURE_NAMES = [undefined, 'Second', 'Third', 'Fourth', 'Fifth']
 /** How many titles the "Out tonight" line names before it counts the rest. */
 const OUT_TONIGHT_NAMED = 2
 
@@ -90,6 +93,7 @@ export function PickPage() {
   const confirmPick = useConfirmPick()
   const updateMovie = useUpdateMovie()
   const cancelPick = useCancelPick()
+  const restorePick = useRestorePick()
 
   const [stage, setStage] = useState<Stage>({ kind: 'choose' })
   /** The confirmed pick and the movie it saved (on Top Rated, maybe not #1): "Pick something else" takes it back. */
@@ -102,6 +106,7 @@ export function PickPage() {
   /** The wheel slice under the pointer, lit up in the list beside the wheel. */
   const [pointerIndex, setPointerIndex] = useState<number | null>(null)
   const stageRegion = useRef<HTMLDivElement>(null)
+  const confirming = useRef(false)
   /** The pick whose winner was just put on "not tonight", while its Undo is on screen before the next pick. */
   const [leavingPickId, setLeavingPickId] = useState<string | null>(null)
   const leaving = useRef<{ timer: number; winner: Movie } | null>(null)
@@ -178,6 +183,18 @@ export function PickPage() {
   }, [choosing])
   useEffect(() => stopConfetti, [])
 
+  // Undo brought tonight's pick back: the toast's button is gone, so focus goes to the card's title.
+  const focusTonightOnShow = useRef(false)
+  useEffect(() => {
+    if (!showTonight || !focusTonightOnShow.current) {
+      return
+    }
+    focusTonightOnShow.current = false
+    if (document.activeElement === document.body || document.activeElement === null) {
+      document.querySelector<HTMLElement>('section[aria-label="Tonight\'s pick"] h2')?.focus({ preventScroll: true })
+    }
+  }, [showTonight])
+
   // Top rated: confetti once #1 has sprung onto the podium.
   const podiumPickId = stage.kind === 'podium' ? stage.result.pick_id : null
   useEffect(() => {
@@ -253,6 +270,11 @@ export function PickPage() {
   // No toast: the winner card itself turns into the news ("Lights down…", focused for the keyboard and screen
   // readers), and the stage dims around it.
   function onConfirm(result: PickResult, movie: Movie) {
+    // A fast double-click can land twice before the button re-renders as disabled.
+    if (confirming.current) {
+      return
+    }
+    confirming.current = true
     const movieId = movie.id === result.winner.id ? undefined : movie.id
     // The theatre chime only where the sound toggle is on screen (the wheels); the click allows audio to start.
     const chime = sound && pickMethodInfo(result.method).isWheel
@@ -269,6 +291,9 @@ export function PickPage() {
           if (chime) {
             playChime()
           }
+        },
+        onSettled: () => {
+          confirming.current = false
         },
       },
     )
@@ -370,7 +395,7 @@ export function PickPage() {
     cancelPick.mutate(movie.id, {
       onSuccess: () => {
         setConfirmedPick(null)
-        toast.info(`${movie.title} isn't tonight's pick anymore`)
+        announceNotTonightsPick(movie)
         focusMethodOnChoose.current = true
         setStage({ kind: 'choose' })
       },
@@ -381,22 +406,61 @@ export function PickPage() {
   function cancelTonight(movie: Movie) {
     cancelPick.mutate(movie.id, {
       onSuccess: () => {
-        toast.info(`${movie.title} isn't tonight's pick anymore`)
+        announceNotTonightsPick(movie)
         focusMethodOnChoose.current = true
       },
     })
+  }
+
+  function announceNotTonightsPick(movie: Movie) {
+    toast.info(`${movie.title} isn't tonight's pick anymore`, {
+      action: { label: 'Undo', onClick: () => restoreTonight(movie) },
+    })
+  }
+
+  /**
+   * The toast's Undo: the confirmation comes back as it was, and so does tonight's card, whatever is on the stage
+   * now (a new pick of the same movie couldn't be confirmed anyway). mutateAsync: it may be pressed from another page.
+   */
+  function restoreTonight(movie: Movie) {
+    focusTonightOnShow.current = true
+    restorePick
+      .mutateAsync(movie.id)
+      .then(() => {
+        toast.success(`${movie.title} is tonight's pick again`)
+        if (!mounted.current) {
+          return
+        }
+        endLeaving({ announce: true })
+        setConfirmedPick(null)
+        setPickingAnotherAfter((id) => (id === movie.id ? null : id))
+        setStage({ kind: 'choose' })
+      })
+      .catch(() => {
+        focusTonightOnShow.current = false
+      })
   }
 
   /** Tonight's card: keep it, and pick another one as well. */
   function pickAnother(movie: Movie) {
     focusMethodOnChoose.current = true
     setPickingAnotherAfter(movie.id)
+    // The card may have been scrolled (phones): the next feature's choose stage starts from its header.
+    window.scrollTo({ top: 0 })
+  }
+
+  /** The next feature's choose stage: never mind, back to tonight's card. */
+  function backToTonight() {
+    focusTonightOnShow.current = true
+    setPickingAnotherAfter(null)
+    window.scrollTo({ top: 0 })
   }
 
   const busy =
     createPick.isPending ||
     confirmPick.isPending ||
     cancelPick.isPending ||
+    restorePick.isPending ||
     updateMovie.isPending ||
     leavingPickId !== null
 
@@ -431,14 +495,17 @@ export function PickPage() {
       </EmptyState>
     )
   } else if (showTonight) {
+    // A double feature: the newest is the card, the earlier ones are named under it.
+    const alsoTonight = toRate.filter((m) => m.id !== tonight.id && pickedTonight(m))
     content = (
-      // The decided card from the night's peak, as it was left: only the movie is lit.
-      <div className="flex w-full max-w-3xl flex-col items-center gap-3">
+      // The decided card from the night's peak, as it was left: a lit screen in the middle of a dark room.
+      <div className="mx-auto flex w-full max-w-4xl flex-col items-center gap-2 sm:gap-3">
         <div className="w-full">
           <PickWinner
             key={tonight.id}
             movie={tonight}
             spotlight
+            tonight
             takeFocus={false}
             scrollIntoView={false}
             actions={
@@ -452,14 +519,39 @@ export function PickPage() {
             }
           />
         </div>
-        <button
-          type="button"
-          onClick={() => pickAnother(tonight)}
-          disabled={cancelPick.isPending}
-          className="rounded-lg px-3 py-3 text-sm text-muted underline-offset-4 transition hover:text-fg hover:underline disabled:opacity-60 sm:py-2 lg:text-base"
+        <div
+          className={`flex flex-wrap items-center justify-center gap-x-2 text-center text-sm text-muted lg:text-base ${HOUSE_LIGHTS_CLASS}`}
         >
-          Double feature? Pick another one
-        </button>
+          {alsoTonight.length > 0 && (
+            <>
+              <p>
+                Also tonight:{' '}
+                {alsoTonight.map((movie, i) => (
+                  <span key={movie.id}>
+                    {i > 0 && ', '}
+                    <Link
+                      to={`/watchlist?movie=${movie.id}`}
+                      // Opens it to rate, like tonight's reminders ("Rate <title>, …").
+                      aria-label={`Rate ${movie.title}, also tonight`}
+                      className="-my-1 rounded py-1 font-semibold text-fg/85 underline-offset-4 transition hover:text-fg hover:underline"
+                    >
+                      {shortTitleOf.get(movie.id) ?? movie.title}
+                    </Link>
+                  </span>
+                ))}
+              </p>
+              <span aria-hidden="true">·</span>
+            </>
+          )}
+          <button
+            type="button"
+            onClick={() => pickAnother(tonight)}
+            disabled={cancelPick.isPending}
+            className="rounded-lg px-1 py-3 underline-offset-4 transition hover:text-fg hover:underline disabled:opacity-60 sm:py-2"
+          >
+            {alsoTonight.length === 0 ? 'Double feature? Pick another one' : 'One more? Pick another one'}
+          </button>
+        </div>
       </div>
     )
   } else if (stage.kind === 'choose' && pickableCount === 0) {
@@ -691,19 +783,50 @@ export function PickPage() {
   const stageMode = stage.kind !== 'choose' && watchlist.data !== undefined && movies.length > 0
   // Phones: the top of the stage is the wheel's pointer, so toasts ("… is out for tonight · Undo") go to the bottom.
   useToastsAtBottomOnPhones(stageMode)
+  // Decided, on tonight's page or the stage they confirmed on: left up while they watch, so the room goes dark.
+  const decidedOnStage = stage.kind !== 'choose' && confirmedPick?.pickId === stage.result.pick_id
+  useHouseLights(showTonight || decidedOnStage)
   let header: ReactNode
   if (stageMode) {
     // The page title stays for screen readers and as the focus fallback.
     header = <h1 className="sr-only">What are we watching?</h1>
   } else if (showTonight) {
-    // The question is answered; how and when jog the memory after a reload or a few hours away.
+    // The question is answered, so this is a caption over the screen: part of the room (centred, smaller than a
+    // page title, dims with the lights). How and when jog the memory after a reload or a few hours away.
     const method = tonight.confirmed_pick_method
     const time = tonight.picked_at && formatTime(tonight.picked_at)
     header = (
-      <PageHeader
-        title="Tonight we're watching"
-        subtitle={time && (method ? `${pickMethodLabel(method)} pick, decided at ${time}.` : `Decided at ${time}.`)}
-      />
+      <header className={`mb-5 flex flex-col items-center gap-1 text-center sm:mb-6 lg:mb-8 ${HOUSE_LIGHTS_CLASS}`}>
+        <h1 className="text-3xl font-semibold tracking-tight text-balance md:text-4xl">Tonight we're watching</h1>
+        {time && (
+          <p className="text-sm text-muted md:text-base">
+            {method ? `${pickMethodLabel(method)} pick, decided at ${time}.` : `Decided at ${time}.`}
+          </p>
+        )}
+      </header>
+    )
+  } else if (tonight !== undefined && pickingAnotherAfter === tonight.id) {
+    // "Double feature?": picking what comes after tonight's movie, with a way back to its card.
+    const tonightCount = toRate.filter(pickedTonight).length
+    header = (
+      <>
+        <button
+          type="button"
+          onClick={backToTonight}
+          className="-mt-2 mb-2 inline-flex items-center gap-1.5 rounded-lg py-2 text-sm font-medium text-muted transition hover:text-fg lg:text-base"
+        >
+          <ArrowLeftIcon className="size-4" />
+          Back to tonight
+        </button>
+        <PageHeader
+          title={`${FEATURE_NAMES[tonightCount] ?? formatOrdinal(tonightCount + 1)} feature`}
+          subtitle={
+            <>
+              Coming up after <span className="font-semibold text-fg/85">{shortTitleOf.get(tonight.id) ?? tonight.title}</span>.
+            </>
+          }
+        />
+      </>
     )
   } else {
     // Phones: the chosen method's tagline under the tiles says it, and the filters need the room.
@@ -724,14 +847,22 @@ export function PickPage() {
 }
 
 /**
- * "Rate it after watching" for every confirmed pick still on the watchlist, newest first; tonight's are marked (a
- * double feature has two).
+ * "Rate it after watching" for every confirmed pick still on the watchlist, newest first. Tonight's are tagged:
+ * "Tonight's pick", or in a double feature their order in the evening ("1st feature", "2nd feature").
  */
 function RateReminders({ movies }: { movies: Movie[] }) {
+  const tonight = movies.filter(pickedTonight).sort((a, b) => Date.parse(a.picked_at ?? '') - Date.parse(b.picked_at ?? ''))
+  const tagOf = (movie: Movie): string | undefined => {
+    const place = tonight.indexOf(movie)
+    if (place === -1) {
+      return undefined
+    }
+    return tonight.length === 1 ? "Tonight's pick" : `${formatOrdinal(place + 1)} feature`
+  }
   return (
     <section aria-label="Waiting for your verdict" className="flex flex-col gap-2">
       {movies.map((movie) => (
-        <RateReminder key={movie.id} movie={movie} tonight={pickedTonight(movie)} />
+        <RateReminder key={movie.id} movie={movie} tonightTag={tagOf(movie)} />
       ))}
     </section>
   )

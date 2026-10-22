@@ -10,6 +10,7 @@ target_fingerprint: "sha256:35d80e7e6124997008125d6316b8c53ccf2ca66acfe327bdf704
 target_path: "D:\\Script\\WSCode\\Python\\Movie_Night\\movie-night\\frontend\\src\\pages\\PickPage.tsx"
 timestamp: 2026-10-21T20-49-04Z
 slug: frontend-src-pages-pickpage-tsx
+closed: true
 ---
 Method: dual-agent (A: design review · B: detector + browser)
 

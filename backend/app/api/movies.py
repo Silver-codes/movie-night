@@ -1,3 +1,7 @@
+import threading
+from collections import OrderedDict
+from dataclasses import dataclass
+from datetime import datetime
 from enum import Enum
 from typing import Annotated
 
@@ -17,6 +21,8 @@ from app.models import (
     MovieUpdate,
     MovieWatched,
     Person,
+    Pick,
+    PickMethod,
     movie_night_date,
 )
 from app.tmdb import TMDBClient, get_tmdb
@@ -24,6 +30,43 @@ from app.tmdb import TMDBClient, get_tmdb
 router = APIRouter(prefix="/movies", tags=["movies"])
 
 SessionDep = Annotated[Session, Depends(get_session)]
+
+
+@dataclass(frozen=True)
+class CancelledPick:
+    method: PickMethod
+    picked_at: datetime
+
+
+class CancelledPicks:
+    """The pick each movie lost to its last "didn't watch it" (the most recent `limit`), so Undo can put it back.
+    In memory like pending picks: gone after a restart, and then it's too late to undo."""
+
+    def __init__(self, limit: int = 100) -> None:
+        self._picks: OrderedDict[int, CancelledPick] = OrderedDict()
+        self._limit = limit
+        self._lock = threading.Lock()
+
+    def put(self, movie_id: int, pick: CancelledPick) -> None:
+        with self._lock:
+            self._picks.pop(movie_id, None)
+            self._picks[movie_id] = pick
+            while len(self._picks) > self._limit:
+                self._picks.popitem(last=False)
+
+    def pop(self, movie_id: int) -> CancelledPick | None:
+        with self._lock:
+            return self._picks.pop(movie_id, None)
+
+
+_cancelled = CancelledPicks()
+
+
+def get_cancelled_picks() -> CancelledPicks:
+    return _cancelled
+
+
+CancelledDep = Annotated[CancelledPicks, Depends(get_cancelled_picks)]
 
 
 class MovieSort(str, Enum):
@@ -137,15 +180,33 @@ def mark_watched(movie_id: int, body: MovieWatched, session: SessionDep) -> Movi
 
 
 @router.delete("/{movie_id}/pick")
-def cancel_pick(movie_id: int, session: SessionDep) -> MovieRead:
+def cancel_pick(movie_id: int, session: SessionDep, cancelled: CancelledDep) -> MovieRead:
     """Undo "we're watching this!" for a movie they didn't watch after all: its latest confirmed pick goes, so the
     "rate it after watching" reminder does too. The movie stays on the watchlist with its hype, pickable as before.
-    Only while it's awaiting a verdict: a watched movie's pick is part of its history."""
+    Only while it's awaiting a verdict: a watched movie's pick is part of its history. POST .../pick/restore undoes it."""
     movie = _get_movie_or_404(session, movie_id)
     pick = movie.latest_confirmed_pick()
     if pick is None or not movie.awaiting_verdict:
         raise HTTPException(status.HTTP_409_CONFLICT, "This movie isn't waiting to be watched")
+    cancelled.put(movie_id, CancelledPick(pick.method, pick.picked_at))
     session.delete(pick)
+    session.commit()
+    session.refresh(movie)
+    return MovieRead.model_validate(movie)
+
+
+@router.post("/{movie_id}/pick/restore")
+def restore_pick(movie_id: int, session: SessionDep, cancelled: CancelledDep) -> MovieRead:
+    """Undo a DELETE .../pick: the pick it removed comes back as it was (same method and time), so the movie is
+    awaiting its verdict again. Only the server's own record of that pick is restored; the client names no pick."""
+    movie = _get_movie_or_404(session, movie_id)
+    pick = cancelled.pop(movie_id)
+    if pick is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Too late to undo that. Pick it again.")
+    # Picked again or watched since: that's the newer decision.
+    if movie.status != MovieStatus.watchlist or movie.awaiting_verdict:
+        raise HTTPException(status.HTTP_409_CONFLICT, "This movie was picked or watched since")
+    session.add(Pick(movie_id=movie_id, method=pick.method, picked_at=pick.picked_at, confirmed=True))
     session.commit()
     session.refresh(movie)
     return MovieRead.model_validate(movie)

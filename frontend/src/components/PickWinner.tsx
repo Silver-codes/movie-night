@@ -5,6 +5,7 @@ import type { Movie } from '../api/types'
 import { formatRuntime } from '../lib/format'
 import { PEOPLE } from '../people'
 import { BackdropImage } from './BackdropImage'
+import { LIGHTS_DOWN_CLASS } from './lightsDown'
 import { PosterImage } from './PosterImage'
 import { StarDisplay } from './StarDisplay'
 
@@ -24,7 +25,18 @@ type Props = {
   showPoster?: boolean
   /** A line under the hype, e.g. how a tie was settled. */
   note?: ReactNode
+  /**
+   * Tonight's page, opened after the moment: nothing to dodge, so the hype leaves entirely, and on phones the
+   * genres join the meta line, so the card and its actions fit above the tab bar.
+   */
+  tonight?: boolean
 }
+
+/**
+ * Once decided (spotlight), the hype steps back: the debate is over. Phones drop it, so the news fits above the tab
+ * bar; laptops/TVs dim it in place, so the news and its buttons don't slide up under the pointer that just confirmed.
+ */
+const STEPPED_BACK_CLASS = 'max-lg:hidden lg:opacity-40 lg:saturate-[0.35]'
 
 /** Phones: how long the landed wheel stays in view before the winner card scrolls up. */
 const LANDED_PAUSE_MS = 1200
@@ -50,7 +62,9 @@ export function PickWinner({
   spotlight = false,
   showPoster = true,
   note,
+  tonight = false,
 }: Props) {
+  const steppedBack = tonight ? 'hidden' : spotlight ? STEPPED_BACK_CLASS : ''
   const reduceMotion = useReducedMotion()
   const ref = useRef<HTMLElement>(null)
   const heading = useRef<HTMLHeadingElement>(null)
@@ -120,7 +134,10 @@ export function PickWinner({
                 {meta}
                 {/* Short laptop screens: the genres join this line, so the card fits the window. */}
                 {movie.genres.length > 0 && (
-                  <span className="hidden lg:[@media(max-height:56rem)]:inline"> · {movie.genres.join(' · ')}</span>
+                  <span className={`hidden lg:[@media(max-height:56rem)]:inline ${tonight ? 'max-lg:inline' : ''}`}>
+                    {' '}
+                    · {movie.genres.join(' · ')}
+                  </span>
                 )}
               </p>
             )}
@@ -128,7 +145,10 @@ export function PickWinner({
         </header>
 
         {movie.genres.length > 0 && (
-          <ul className="flex flex-wrap gap-1.5 lg:[@media(max-height:56rem)]:hidden" aria-label="Genres">
+          <ul
+            className={`flex flex-wrap gap-1.5 lg:[@media(max-height:56rem)]:hidden ${tonight ? 'max-lg:hidden' : ''}`}
+            aria-label="Genres"
+          >
             {movie.genres.map((genre) => (
               <li key={genre} className="rounded-full bg-ink-800 px-2.5 py-1 text-xs text-muted ring-1 ring-ink-700 lg:px-3.5 lg:py-1.5 lg:text-base">
                 {genre}
@@ -137,13 +157,15 @@ export function PickWinner({
           </ul>
         )}
 
-        {/* Once decided (spotlight), the hype steps back: the debate is over, and the news below must fit the
-            window with the wheel or podium (on phones, the screen above the tab bar). */}
         {/* Nobody has hyped it: one quiet line, not two "not rated" rows saying the same thing. */}
         {movie.fuf_hype === null && movie.cookie_hype === null ? (
-          <p className={`text-muted lg:text-lg ${spotlight ? 'hidden' : ''}`}>No hype yet</p>
+          <p className={`text-muted lg:text-lg ${LIGHTS_DOWN_CLASS} ${steppedBack}`}>
+            No hype yet
+          </p>
         ) : (
-          <div className={`flex flex-wrap items-center gap-x-6 gap-y-3 lg:gap-x-8 ${spotlight ? 'hidden' : ''}`}>
+          <div
+            className={`flex flex-wrap items-center gap-x-6 gap-y-3 lg:gap-x-8 ${LIGHTS_DOWN_CLASS} ${steppedBack}`}
+          >
             {PEOPLE.map((person) => (
               <StarDisplay
                 key={person.id}
@@ -156,7 +178,13 @@ export function PickWinner({
           </div>
         )}
 
-        {note && <p className={`-mt-2 text-sm text-muted lg:-mt-3 lg:text-lg ${spotlight ? 'hidden' : ''}`}>{note}</p>}
+        {note && (
+          <p
+            className={`-mt-2 text-sm text-muted lg:-mt-3 lg:text-lg ${LIGHTS_DOWN_CLASS} ${steppedBack}`}
+          >
+            {note}
+          </p>
+        )}
 
         {actions}
       </div>

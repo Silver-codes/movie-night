@@ -1,4 +1,5 @@
 import { NavLink } from 'react-router'
+import { HOUSE_LIGHTS_CLASS } from './lightsDown'
 import { NAV_ITEMS } from './navItems'
 
 /** Fixed tab bar on phones; hidden from `md` up. */
@@ -8,7 +9,8 @@ export function BottomTabBar() {
       aria-label="Main"
       className="fixed inset-x-0 bottom-0 z-30 border-t border-ink-700/60 bg-ink-950/90 pb-[env(safe-area-inset-bottom)] backdrop-blur-md md:hidden"
     >
-      <ul className="grid grid-cols-4">
+      {/* The bar stays opaque when the house lights go down (the card scrolls under it); only the tabs dim. */}
+      <ul className={`grid grid-cols-4 ${HOUSE_LIGHTS_CLASS}`}>
         {NAV_ITEMS.map(({ to, label, Icon }) => (
           <li key={to}>
             <NavLink

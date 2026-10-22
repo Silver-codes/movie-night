@@ -33,3 +33,11 @@ export function deleteMovie(id: number): Promise<void> {
 export function cancelPick(id: number): Promise<Movie> {
   return apiFetch<Movie>(`/api/movies/${id}/pick`, { method: 'DELETE' })
 }
+
+/**
+ * Undoes `cancelPick`: the pick it removed comes back as it was (404 once it's too late, 409 if the movie was picked
+ * or watched since).
+ */
+export function restorePick(id: number): Promise<Movie> {
+  return apiFetch<Movie>(`/api/movies/${id}/pick/restore`, { method: 'POST' })
+}

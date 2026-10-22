@@ -1,5 +1,14 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
-import { cancelPick, deleteMovie, fetchMovie, fetchMovies, markWatched, saveMovie, updateMovie } from './movies'
+import {
+  cancelPick,
+  deleteMovie,
+  fetchMovie,
+  fetchMovies,
+  markWatched,
+  restorePick,
+  saveMovie,
+  updateMovie,
+} from './movies'
 import { queryKeys } from './queryKeys'
 import type { Movie, MovieFilters, MovieSave, MovieUpdate, MovieWatched, SearchResult } from './types'
 
@@ -162,11 +171,20 @@ export function useMarkWatched() {
 
 /** "Didn't watch it after all": the confirmed pick goes, the movie stays on the watchlist (see `cancelPick`). */
 export function useCancelPick() {
+  return usePickChange(cancelPick)
+}
+
+/** The Undo of `useCancelPick`: the confirmed pick comes back as it was (see `restorePick`). */
+export function useRestorePick() {
+  return usePickChange(restorePick)
+}
+
+function usePickChange(change: (id: number) => Promise<Movie>) {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: (id: number) => cancelPick(id),
+    mutationFn: change,
     onSuccess: (movie) => {
-      // Into the lists right away, not only after the refetch: Pick must not show it as tonight's pick meanwhile.
+      // Into the lists right away, not only after the refetch: Pick must show (or stop showing) it as tonight's pick.
       patchMovieInCaches(queryClient, movie.id, () => movie)
       void queryClient.invalidateQueries({ queryKey: ['movies', 'list'] })
     },

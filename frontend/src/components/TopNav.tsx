@@ -1,4 +1,5 @@
 import { NavLink } from 'react-router'
+import { HOUSE_LIGHTS_CLASS } from './lightsDown'
 import { Logo } from './Logo'
 import { NAV_ITEMS } from './navItems'
 import { PeopleButton } from './PeopleButton'
@@ -7,7 +8,8 @@ import { PeopleButton } from './PeopleButton'
 export function TopNav() {
   return (
     <header className="sticky top-0 z-30 border-b border-ink-700/60 bg-ink-950/80 pt-[env(safe-area-inset-top)] backdrop-blur-md">
-      <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 sm:px-6">
+      {/* The bar itself stays opaque when the house lights go down; only what's on it dims. */}
+      <div className={`mx-auto flex h-16 max-w-6xl items-center justify-between px-4 sm:px-6 ${HOUSE_LIGHTS_CLASS}`}>
         <Logo />
         <nav aria-label="Main" className="ml-auto hidden md:block">
           <ul className="flex items-center gap-1">

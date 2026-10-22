@@ -1,5 +1,8 @@
 @import "tailwindcss";
 
+/* The house lights are down (`useHouseLights` in lib/houseLights.ts): the room around tonight's movie dims. */
+@custom-variant lights-down (&:where([data-lights="down"] *));
+
 /* Design tokens: dark cinema. Use them as Tailwind utilities, e.g. bg-ink-900, text-accent, text-fuf. */
 @theme {
   /* Self-hosted variable fonts (@fontsource-variable, imported in main.tsx). */

@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-10-09T12:00:00Z",
+  "generatedAt": "2026-10-22T23:37:54Z",
   "title": "Design System: Movie Night",
   "extensions": {
     "colorMeta": {
@@ -292,14 +292,44 @@
         "purpose": "The #1 podium reveal, bouncier than #2/#3 (260/24)."
       },
       {
-        "name": "wheel-spin",
-        "value": "5.8s custom ease (0.8s easeOut with reduced motion)",
-        "purpose": "Spin wheel landing on the server's winner."
-      },
-      {
         "name": "popover",
         "value": "0.18s easeOut",
         "purpose": "Quick-rate popover."
+      },
+      {
+        "name": "wheel-spin",
+        "value": "5.8s custom ease, 6+ turns (0.8s easeOut with reduced motion)",
+        "purpose": "The first spin on the stage, landing on the server's winner."
+      },
+      {
+        "name": "wheel-respin",
+        "value": "3.4s custom ease, 3+ turns",
+        "purpose": "Every later spin on the same stage."
+      },
+      {
+        "name": "wheel-skip",
+        "value": "0.6s ease-out onto the same landing spot",
+        "purpose": "Tap the wheel or Space/Enter to skip a spin; the winner cannot change."
+      },
+      {
+        "name": "lights-down",
+        "value": "1s ease-out to 40% opacity, 35% saturation (raise on reach: 0.2s)",
+        "purpose": "Confirming dims everything on the stage except the chosen movie."
+      },
+      {
+        "name": "spotlight",
+        "value": "1.6s ease-out, backdrop brightness 120%, scale 104%",
+        "purpose": "The confirmed winner's backdrop brightens and pushes in."
+      },
+      {
+        "name": "decided-settle",
+        "value": "700ms inert, then 0.4s fade (ease 0.16,1,0.3,1)",
+        "purpose": "The decided card's actions, held back past a double-click on the confirm button."
+      },
+      {
+        "name": "house-lights",
+        "value": "after 4s idle: 2s ease-out to 40% opacity, 35% saturation; up in 0.3s on any input, at once on hover/focus",
+        "purpose": "The room (nav, tab bar, captions) around tonight's movie or a confirmed stage."
       }
     ],
     "breakpoints": [
@@ -395,7 +425,7 @@
     "rules": [
       {
         "name": "The One Light Source Rule",
-        "body": "Screen Glow Blue is the only accent. It marks the current action, the current selection, or the winner, and nothing else. If two things on a screen are blue, one of them is wrong.",
+        "body": "Screen Glow Blue is the only accent. It marks the current action, the current selection, or the winner, and nothing else. Two blue things may share a screen only when they are one decision (the chosen poster and the button that confirms it); any other blue is wrong.",
         "section": "colors"
       },
       {
@@ -438,8 +468,8 @@
       "**Don't** hardcode a person's name, emoji or color in the UI.",
       "**Don't** tint page surfaces or add colored gradients; the posters provide the color.",
       "**Don't** put `backdrop-blur` on cards; keep blur for floating chrome and overlays.",
-      "**Don't** use Motion's `whileTap` on non-button elements (it adds `tabindex=0`).",
-      "**Don't** put colored glows or colored shadows around anything; blue is a fill or an outline."
+      "**Don't** put colored glows or colored shadows around anything; blue is a fill or an outline.",
+      "**Don't** use Motion's `whileTap` on non-button elements (it adds `tabindex=0`)."
     ]
   }
 }

@@ -14,6 +14,7 @@ from app.db import get_session
 from app.models import (
     Movie,
     MovieRead,
+    MovieStatus,
     Pick,
     PickCandidate,
     PickConfirm,
@@ -68,6 +69,7 @@ class PendingPicks:
 
 
 _pending = PendingPicks()
+_confirm_lock = threading.Lock()
 
 
 def get_pending_picks() -> PendingPicks:
@@ -163,6 +165,12 @@ def confirm_pick(
 ) -> PickRead:
     """Save a pick shown by POST /picks ("we're watching this"): the winner, or on Top Rated another place
     (`movie_id`). Confirming twice is fine."""
+    # One confirm at a time, so a double-click's two requests save one pick: the second sees the first's.
+    with _confirm_lock:
+        return _confirm(pick_id, session, pending, body)
+
+
+def _confirm(pick_id: str, session: Session, pending: PendingPicks, body: PickConfirm | None) -> PickRead:
     entry = pending.get(pick_id)
     if entry is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "This pick has expired. Pick again.")
@@ -171,8 +179,12 @@ def confirm_pick(
     movie_id = body.movie_id if body is not None and body.movie_id is not None else entry.movie_id
     if movie_id not in entry.choosable_ids:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "That movie isn't in this pick")
-    if session.get(Movie, movie_id) is None:
+    movie = session.get(Movie, movie_id)
+    if movie is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Movie not found")
+    # Picked (or watched) since this pick was shown, e.g. an Undo brought back its earlier confirmation.
+    if movie.status != MovieStatus.watchlist or movie.awaiting_verdict:
+        raise HTTPException(status.HTTP_409_CONFLICT, "That movie is already picked. Pick again.")
     pick = Pick(movie_id=movie_id, method=entry.method, confirmed=True)
     session.add(pick)
     session.commit()

@@ -17,23 +17,24 @@ All roadmap steps (1–11) and the Pick page passes are done. What each step bui
 ### Gotchas
 
 - **The DB:** no migrations. `backend/movie_night.db` holds no real data, but it's the user's manual-testing set (saved movies, hype), so don't delete it: after a schema change, ask how to migrate it.
-- **Picks are saved only on confirm:** `POST /api/picks` keeps a pending pick in memory (`PendingPicks` in `picks.py`, `pick_id` is a string token), so a confirm after a backend restart is a 404 "expired".
+- **Picks are saved only on confirm:** `POST /api/picks` keeps a pending pick in memory (`PendingPicks` in `picks.py`, `pick_id` is a string token), so a confirm after a backend restart is a 404 "expired". Same for the Undo of a cancelled pick (`CancelledPicks` in `movies.py`): 404 after a restart.
 - **Movie-night date:** `movieNightDate()` in `frontend/src/lib/format.ts` mirrors the backend's `movie_night_date()` (rolls over at 06:00); change both together.
 - **Production mode:** `mount_frontend()` (`app/frontend.py`) runs only when `frontend/dist/index.html` exists, after `api_router`; it forces the `.js`/`.css` MIME types because the Windows registry can get them wrong.
 - **Person colors:** `applyPersonColors()` (`lib/personProfiles.ts`) points `--color-fuf` / `--color-cookie` at the chosen `--color-swatch-*`; the `-soft` tints follow via `color-mix`.
 - **Motion:** don't use `whileTap` on non-buttons: it adds `tabindex=0` (use CSS `active:scale-*`).
 - **Optimistic updates:** callbacks after a `useUpdateMovie` that unmounts the caller go in `mutateAsync().then(...)`, not per-call `onSuccess` (skipped on unmount).
+- **House lights:** `useHouseLights()` (`lib/houseLights.ts`) sets `<html data-lights>`; style the room with `HOUSE_LIGHTS_CLASS` / the `lights-down:` variant, never the movie itself, and keep bars opaque (dim their contents).
 - **`Modal`** renders through a portal on `<body>` (fixed positioning breaks inside transformed ancestors).
 - **Design context** for the impeccable skill: `PRODUCT.md`, `DESIGN.md` + `.impeccable/design.json` ("Lights Down, Screen Up", One Light Source rule); critique snapshots in `.impeccable/critique/`.
 
 ### Next
 
-- [ ] **Next: the plan agreed after critique #7** (29/40, snapshot `.impeccable/critique/2026-10-21T20-49-04Z__…`; history 27 → 27 → 25 → 29 → 28 → 30 → 29; the whole #6 plan is done, see changelog), in this order:
-  1. `/impeccable harden pick`, **confirm misfire (P1)**: a double-click after "We're watching this!" lands on the `Decided` actions ("Pick something else" cancels, "Rate it after watching" leaves); reproduced at 1440 Top Rated and 1280. Make them inert until the entrance settles (~700 ms), move them off the CTA's footprint, and give the "X isn't tonight's pick anymore" toast an Undo that restores the confirmed pick (backend: re-confirm needs a way to recreate the `Pick`, e.g. keep the cancelled pick's method/time).
-  2. `/impeccable layout pick` (+ delight), **tonight page = lit card on a dimmed room** (user's choice, not a full-screen marquee): centre the card (no 500 px empty right side at 1440), dim everything else incl. the nav while idle (raise on hover/focus), "Also tonight: X" for a double feature, compact phone card with its actions above the tab bar (now +166 px).
-  3. `/impeccable clarify pick`, **double-feature path**: "Second feature" header + "← Back to tonight" after "Double feature?", scroll to top on phones (opens 128 px down), "1st / 2nd feature" tags instead of identical "Tonight's pick", "Take it back" instead of "Didn't watch it" on tonight's rows.
-  4. `/impeccable polish pick`, then critique #8 vs #7.
-  - Not in scope this round (P3s, maybe later): one tab stop per chip row with arrow keys (21 → ~10 tabs to Spin); a short spin / "Just one in the hat" for a one-movie hat; one "No hype yet" in the spin legend.
+- [ ] **Next: the plan agreed after critique #8** (33/40, snapshot `.impeccable/critique/2026-10-22T23-48-46Z__…`; history 29 → 28 → 30 → 29 → 33; the whole #7 plan is done, see changelog), in this order (scope: the three P2s only):
+  1. `/impeccable clarify pick` (+ harden), **double feature = a programme**: tonight's card is the **1st feature** (the earliest pick of the movie night still awaiting its verdict), tagged "1st feature", with "Then: <2nd feature>" under it; the 2nd takes over once the 1st is rated or taken back. Reminder rows in evening order (1st above 2nd). After taking one back: focus the remaining card's title, its actions inert ~700 ms (like `Decided`), toast "X is out. Y is still tonight's pick." (+ Undo). One name for taking back tonight's movie everywhere (card and reminder; today "Pick something else" vs "Take it back").
+  2. `/impeccable quieter pick` (+ delight), **idle tonight's card = poster + title only**: with the house lights down, the card's news block and both actions dim with the room (back on any input, hover or focus); the page title "Tonight we're watching" stays lit (it says what the screen is); after a reload the stale "Lights down. Enjoy the movie!" becomes a time-neutral "Now showing"-style line (keep "It's decided, 🐻 & 🍪"). The confirm moment itself keeps "Lights down…".
+  3. `/impeccable clarify pick`, **device/time copy**: "Tap the wheel to skip / spin again" → "Click or press Space…" on fine pointers (keep "Tap" on touch); "They come back on their own tomorrow" → "back next movie night" (rollover 06:00).
+  4. `/impeccable polish pick`, then critique #9 vs #8.
+  - Not in scope this round (P3s): phone landings (confirmed card at scrollY 393 under a wheel stub; scrollTo(0) after a stage cancel); one tab stop per chip row (21 → ~10 tabs to Spin); "Just one in the hat" for a one-movie hat; one "No hype yet" in the spin legend.
   - **Decisions to respect:** the winner's label on the wheel stays vertical (the card shows the name); the choose-stage redesign ("open straight on the wheel" / choose stage as a ritual) is saved for a later `/impeccable shape pick`; Top Rated lets them take any place, and "Not tonight" acts on the chosen movie; wheels stay the server's result; **no hint or "#2 · your pick" tag for choosing a podium place** (it's intuitive; don't raise it again).
   - **Testing anything that writes (confirm, cancel, "Didn't watch it"):** never against `backend/movie_night.db` (not real data, but it's their manual-testing set; keep it intact). Copy it, run `uv run uvicorn app.main:app --port 8010` with `DATABASE_URL=sqlite:///<copy>`, and point Vite at :8010 with a throwaway config outside the repo (`.mts`, importing `frontend/vite.config.ts`, `root` = frontend, proxy `/api` → :8010; spread the base config, don't `import from "vite"`, which can't resolve from outside the repo). Their own app may be running on :8000 ("Start Movie Night.bat"); don't stop it.
   - **On a fresh machine:** `backend/.env` (TMDB token) and `backend/movie_night.db` are git-ignored. Copy both over from the other computer (or create `.env` from `.env.example` and add a few movies), then `npm install` and `uv sync` (README). The critique needs real watchlist content: at least 4 movies for the podium's "N more in the hat", some with hype.
@@ -75,7 +76,7 @@ backend/
       __init__.py     # api_router — include each feature router here
       health.py       # GET /api/health
       search.py       # GET /api/search?q=, GET /api/tmdb/movies/{tmdb_id}
-      movies.py       # /api/movies CRUD + /watched + DELETE /{id}/pick
+      movies.py       # /api/movies CRUD + /watched + DELETE /{id}/pick (+ POST /{id}/pick/restore, its Undo)
       picks.py        # POST /api/picks (choose(), get_rng), /api/picks/{id}/confirm
       history.py      # GET /api/history (+ stats)
       people.py       # GET /api/people, PATCH /api/people/{person} (names, emoji, colors), seed_people()
