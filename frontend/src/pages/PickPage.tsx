@@ -27,6 +27,7 @@ import { SpinWheel } from '../components/SpinWheel'
 import { PODIUM_LANDED_MS, TopRatedPodium } from '../components/TopRatedPodium'
 import { PointerReadout, WheelLegend } from '../components/WheelLegend'
 import { fireConfetti, preloadConfetti, stopConfetti } from '../lib/confetti'
+import { useMediaQuery } from '../lib/useMediaQuery'
 import { formatOrdinal, formatTime, movieNightDate } from '../lib/format'
 import { useHouseLights } from '../lib/houseLights'
 import { PICK_METHODS, pickMethodInfo, pickMethodLabel, RUNTIME_LIMITS, type RuntimeLimit } from '../lib/pickMethods'
@@ -145,6 +146,9 @@ export function PickPage() {
   // tonight") would play off-screen: bring the stage's top back into view first. Laptops/TVs see the whole stage.
   const stagePickId = stage.kind === 'choose' ? null : stage.result.pick_id
   const reduceMotion = useReducedMotion()
+  // Wheel hints: "Tap" on touch screens; a mouse clicks, and a keyboard skips the spin with Space.
+  const finePointer = useMediaQuery('(pointer: fine)')
+  const skipHint = finePointer ? 'Click the wheel or press Space to skip' : 'Tap the wheel to skip'
   useEffect(() => {
     const region = stageRegion.current
     if (stagePickId === null || !region || window.matchMedia('(min-width: 64rem)').matches) {
@@ -566,7 +570,7 @@ export function PickPage() {
             </button>
           }
         >
-          You said “not tonight” to every movie left in the hat. They come back on their own tomorrow.
+          You said “not tonight” to every movie left in the hat. They come back on their own next movie night.
         </EmptyState>
       ) : (
         // The rest of the watchlist was picked and is waiting for a verdict (out of the hat until then).
@@ -753,8 +757,12 @@ export function PickPage() {
               />
               <div className="flex w-full max-w-md items-center justify-center gap-3 lg:max-w-none">
                 {/* Below lg the winner scrolls into view under the wheel and has its own "Spin again". */}
-                {canSpinAgain && <p className="hidden text-muted lg:block lg:text-lg">Tap the wheel to spin again</p>}
-                {!stage.landed && <p className="hidden text-muted lg:block lg:text-lg">Tap the wheel to skip</p>}
+                {canSpinAgain && (
+                  <p className="hidden text-muted lg:block lg:text-lg">
+                    {finePointer ? 'Click' : 'Tap'} the wheel to spin again
+                  </p>
+                )}
+                {!stage.landed && <p className="hidden text-muted lg:block lg:text-lg">{skipHint}</p>}
                 {!stage.landed && pointerCandidate && (
                   <PointerReadout
                     candidate={pointerCandidate}
@@ -766,7 +774,7 @@ export function PickPage() {
                 <SoundToggle on={sound} onToggle={toggleSound} className="size-9 shrink-0 lg:size-11" />
               </div>
               {/* Phones: the readout has the row, so the skip hint sits under it. */}
-              {!stage.landed && <p className="-mt-1 text-sm text-muted lg:hidden">Tap the wheel to skip</p>}
+              {!stage.landed && <p className="-mt-1 text-sm text-muted lg:hidden">{skipHint}</p>}
             </div>
             {/* While it spins: who's on the wheel. Once it lands: the winner. */}
             {stage.landed ? (

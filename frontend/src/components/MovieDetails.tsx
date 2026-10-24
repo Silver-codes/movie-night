@@ -100,7 +100,7 @@ function WatchlistDetails({ movie, onDone }: Props) {
         <label className="flex cursor-pointer items-center justify-between gap-4 rounded-xl bg-ink-800 px-4 py-3 ring-1 ring-ink-700">
           <span>
             <span className="block font-medium">Not tonight</span>
-            <span className="block text-sm text-muted">Leave it out of tonight's picks. Resets tomorrow.</span>
+            <span className="block text-sm text-muted">Leave it out of tonight's picks. Back next movie night.</span>
           </span>
           <input
             type="checkbox"
